@@ -4555,7 +4555,7 @@ CookGroup:AddButton({
     Tooltip = "Verify ingredients and start cooking"
 })
 
-local ShopGroupBox = Tabs.Main:AddRightGroupbox("Shop")
+local ShopGroupBox = Tabs.Main:AddRightGroupbox("[BETA] Shop")
 
 -- Function to handle the buying logic
 local function BuyMaxItems()
