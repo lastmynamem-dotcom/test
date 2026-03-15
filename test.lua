@@ -294,53 +294,7 @@ LeftGroupBox:AddToggle("AutoKillAll", {
     Tooltip = "Auto kills all barts if you're Homer.",
     Default = false,
     Callback = function(Value)
-        local exitCFrame = CFrame.new(
-            -0.0539585017, 103.999977, 44.5736847, 
-            0.999980271, 5.21511829e-08, 0.00628343504, 
-            -5.23917691e-08, 1, 3.8124238e-08, 
-            -0.00628343504, -3.84526864e-08, 0.999980271
-        )
-
-        if Value then
-            task.spawn(function()
-                while Toggles.AutoKillAll.Value do
-                    -- Check if you are Homer
-                    if LocalPlayer.Team and LocalPlayer.Team.Name == "Homer" then
-                        for _, targetPlayer in ipairs(game.Players:GetPlayers()) do
-                            -- Stop immediately if toggle is turned off mid-loop
-                            if not Toggles.AutoKillAll.Value then break end
-
-                            -- Only target Barts who are alive
-                            if targetPlayer ~= LocalPlayer and targetPlayer.Team and targetPlayer.Team.Name == "Bart" then
-                                -- RE-FETCH your character/root every time to prevent death-bugs
-                                local myChar = LocalPlayer.Character
-                                local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-                                local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
-
-                                local targetChar = targetPlayer.Character
-                                local targetRoot = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
-                                local targetHum = targetChar and targetChar:FindFirstChildOfClass("Humanoid")
-
-                                -- Only teleport if both you AND the target are alive
-                                if myRoot and myHum and myHum.Health > 0 and targetRoot and targetHum and targetHum.Health > 0 then
-                                    myRoot.CFrame = targetRoot.CFrame
-                                    task.wait(0.1) -- 0.1 second delay per person
-                                end
-                            end
-                        end
-                    end
-                    task.wait(0.3) -- Small delay before starting the next "sweep"
-                end
-            end)
-        else
-            -- Teleport to exit coordinates when disabled
-            local myChar = LocalPlayer.Character
-            local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-            if myRoot then
-                myRoot.CFrame = exitCFrame
-            end
-        end
-    end,
+    end
 })
 
 local StaffIDs = {
@@ -492,6 +446,80 @@ task.spawn(function()
             Lighting.FogEnd = 1000000
             local atm = Lighting:FindFirstChildOfClass("Atmosphere")
             if atm then atm.Density = 0 end
+        end
+    end
+end)
+
+LeftGroupBox:AddToggle('AutoCompleteObby', {
+    Text = 'Auto Complete Obby',
+    Default = false,
+    Tooltip = 'Instantly wins the lobby obby repeatedly',
+    Callback = function(Value)
+    end
+})
+
+-- LOGIC HANDLER
+task.spawn(function()
+    local Teams = game:GetService("Teams")
+    local p = game.Players.LocalPlayer
+
+    while task.wait() do
+        -- 1. AUTO COMPLETE OBBY LOGIC
+        if Toggles.AutoCompleteObby and Toggles.AutoCompleteObby.Value then
+            pcall(function()
+                local winpad = workspace.lobbyCage.obby.landawnObby:FindFirstChild("winpad")
+                local hrp = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+                if winpad and hrp then
+                    firetouchinterest(hrp, winpad, 0)
+                    task.wait()
+                    firetouchinterest(hrp, winpad, 1)
+                end
+            end)
+        end
+
+        -- 2. AUTO KILL BARTS (TEAM-BASED)
+        if Toggles.AutoKillBarts and Toggles.AutoKillBarts.Value then
+            -- Check if YOU are Homer
+            if p.Team == Teams:FindFirstChild("Homer") then
+                
+                -- Find a target on Team Bart
+                local targetPlayer = nil
+                for _, v in pairs(game.Players:GetPlayers()) do
+                    if v.Team == Teams:FindFirstChild("Bart") and v.Character and v.Character:FindFirstChild("Humanoid") and v.Character.Humanoid.Health > 0 then
+                        targetPlayer = v
+                        break
+                    end
+                end
+
+                if targetPlayer and targetPlayer.Character then
+                    local bHum = targetPlayer.Character:FindFirstChild("Humanoid")
+                    local bRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+
+                    -- Loop until THIS specific Bart dies or switches teams
+                    repeat
+                        if not Toggles.AutoKillBarts.Value or p.Team ~= Teams:FindFirstChild("Homer") then break end
+                        
+                        local myChar = p.Character
+                        local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+                        local myHum = myChar and myChar:FindFirstChild("Humanoid")
+
+                        -- Verify we are alive and target is still valid
+                        if myRoot and myHum and myHum.Health > 0 and bRoot and bHum and bHum.Health > 0 then
+                            -- Stay behind the Bart
+                            myRoot.CFrame = bRoot.CFrame * CFrame.new(0, 0, 3)
+
+                            -- Weapon Handling
+                            local tool = p.Backpack:FindFirstOfClass("Tool") or myChar:FindFirstOfClass("Tool")
+                            if tool then
+                                tool.Parent = myChar
+                                tool:Activate()
+                            end
+                        end
+                        task.wait()
+                    -- Condition: Loop until they die, leave team, or leave game
+                    until not targetPlayer or not targetPlayer.Character or bHum.Health <= 0 or targetPlayer.Team ~= Teams:FindFirstChild("Bart") or not Toggles.AutoKillBarts.Value
+                end
+            end
         end
     end
 end)
@@ -865,6 +893,106 @@ RightGroupBox:AddButton({
     end,
 })
 
+RightGroupBox:AddButton({
+    Text = "Fake Homer Ritual",
+    Func = function()
+local RunService = game:GetService("RunService")
+
+-- References
+local lp = game.Players.LocalPlayer
+local character = lp.Character or lp.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+local humanoid = character:WaitForChild("Humanoid")
+
+-- Configuration
+local duration = 10          -- Seconds to go up
+local pauseTime = 2         -- Seconds to wait at top
+local distance = 15         -- Studs to travel
+local startRotationSpeed = 500 -- Initial spin speed
+
+-- 1. Create the Red Glowing Platform
+local platform = Instance.new("Part")
+platform.Name = "AscensionPlatform"
+platform.Size = Vector3.new(0.5, 5, 5) -- Thin disc
+platform.Color = Color3.fromRGB(255, 0, 0)
+platform.Material = Enum.Material.Neon
+platform.CanCollide = false -- Won't trip the player
+platform.CanQuery = false   -- Camera/Raycasts ignore it
+platform.Anchored = true
+platform.Parent = character
+
+local startCFrame = hrp.CFrame
+local elapsedTime = 0
+
+-- The Animation Loop
+hrp.Anchored = true
+
+local connection
+connection = RunService.Heartbeat:Connect(function(dt)
+	elapsedTime = elapsedTime + dt
+	
+	-- Calculate progress (0 to 1)
+	local alpha = math.clamp(elapsedTime / duration, 0, 1)
+	
+	-- Linear Movement Up
+	local currentHeight = distance * alpha
+	local positionOffset = Vector3.new(0, currentHeight, 0)
+	
+	-- Decelerating Spin math
+	local rotationAngle = startRotationSpeed * (alpha - (alpha^2 / 2))
+	
+	-- Update HRP CFrame
+	local currentCFrame = (startCFrame + positionOffset) * CFrame.Angles(0, rotationAngle, 0)
+	hrp.CFrame = currentCFrame
+	
+	-- Update Platform CFrame (stay 3.5 studs below HRP center)
+	-- We rotate the cylinder 90 degrees on the Z axis so it lays flat
+	platform.CFrame = currentCFrame * CFrame.new(0, -3.2, 0) * CFrame.Angles(0, 0, math.rad(90))
+	
+	-- Stop when time is up
+	if alpha >= 1 then
+		connection:Disconnect()
+		
+		-- Brief wait at the top
+		task.wait(pauseTime)
+		
+		-- Cleanup and Reset
+		platform:Destroy()
+		hrp.Anchored = false
+		humanoid.Health = 0
+	end
+end)
+    end,
+    Tooltip = "Ascends you into the sky and resets character"
+})
+
+RightGroupBox:AddButton({
+    Text = "Gamble all machines",
+    Func = function()
+
+local cl = workspace.lobbyCage.fun.slotMachine3.lever.handle.ClickDetector
+
+cl.MaxActivationDistance = 9e9
+fireclickdetector(cl)
+
+local cl1 = workspace.lobbyCage.fun.slotMachine2.lever.handle.ClickDetector
+
+cl1.MaxActivationDistance = 9e9
+fireclickdetector(cl1)
+
+local cl2 = workspace.lobbyCage.fun.slotMachine1.lever.handle.ClickDetector
+
+cl2.MaxActivationDistance = 9e9
+fireclickdetector(cl2)
+
+local cl3 = workspace.lobbyCage.fun.slotMachine4.lever.handle.ClickDetector
+
+cl3.MaxActivationDistance = 9e9
+fireclickdetector(cl3)
+
+    end,
+    Tooltip = "Gambles all of the machines"
+})
 wait(1)
 
 Library:Notify("Bypassed Anti-cheats!")
@@ -4052,12 +4180,14 @@ Workspace.ChildRemoved:Connect(function(obj)
 	end
 end)
 
--- AUTO FISH (Cross-Platform Safe: Windows + macOS)
+-- AUTO FISH (Cross-Platform Safe: Windows + macOS + Mobile)
 
 -- SERVICES
 local Players = game:GetService("Players")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local UserInputService = game:GetService("UserInputService") -- Added for Mobile Check
 local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
 
 -- LOCAL PLAYER (robust)
 local lp = Players.LocalPlayer
@@ -4066,6 +4196,7 @@ while not lp do task.wait() lp = Players.LocalPlayer end
 local OriginalHipHeight
 
 -- UI
+-- Note: Ensure "Tabs" and "Library" exist in your execution environment or load a UI library before this.
 local MainGroup = Tabs.Main:AddLeftGroupbox("Fishing")
 
 MainGroup:AddToggle("AutoFish", {
@@ -4100,10 +4231,26 @@ local function safeFirePrompt(prompt)
     end
 end
 
+-- [[ UPDATED CLICK LOGIC ]] --
 local function click()
-    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-    task.wait(0.05)
-    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+    -- specific mobile check
+    local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+    
+    -- Calculate center of screen (safer than 0,0 which hits mobile menus)
+    local viewportSize = Workspace.CurrentCamera.ViewportSize
+    local x, y = viewportSize.X / 2, viewportSize.Y / 2
+    
+    if isMobile then
+        -- Mobile Touch Logic
+        VirtualInputManager:SendTouchEvent(0, Enum.UserInputState.Begin, Vector2.new(x, y), nil)
+        task.wait(0.05)
+        VirtualInputManager:SendTouchEvent(0, Enum.UserInputState.End, Vector2.new(x, y), nil)
+    else
+        -- PC Mouse Logic
+        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+        task.wait(0.05)
+        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+    end
 end
 
 local function deleteBlacklistedItems()
@@ -4406,6 +4553,117 @@ CookGroup:AddButton({
     end,
     DoubleClick = false,
     Tooltip = "Verify ingredients and start cooking"
+})
+
+local ShopGroupBox = Tabs.Main:AddRightGroupbox("Shop")
+
+-- Function to handle the buying logic
+local function BuyMaxItems()
+    local itemName = Options.UnlocksDropdown.Value
+    local isToggled = Toggles.ShopFeatureToggle.Value
+    
+    if not isToggled or not itemName or itemName == "No Unlocks Found" then 
+        return 
+    end
+
+    local player = game:GetService("Players").LocalPlayer
+    local moneyValueObject = player:FindFirstChild("Money")
+    
+    if not moneyValueObject then
+        print("[DEBUG] Money object not found at LocalPlayer.Money")
+        return
+    end
+
+    local money = moneyValueObject.Value
+    local unlockFolder = player.PlayerGui.PlayerUI.the_interwebs.Unlocks
+    local itemFrame = unlockFolder:FindFirstChild(itemName)
+    
+    if itemFrame and itemFrame:FindFirstChild("Item Price") then
+        local rawPriceText = itemFrame["Item Price"].Text
+        
+        -- Improved price extraction: finds the first number in the string
+        -- This handles "Price:$100", "Price: $100", or "Price: 1,000"
+        local cleanPrice = rawPriceText:gsub(",", ""):match("%d+")
+        local price = tonumber(cleanPrice)
+
+        print("[DEBUG] Item:", itemName, "| Money:", money, "| Price:", price)
+
+        if price and price > 0 then
+            local amountToBuy = math.floor(money / price)
+            print("[DEBUG] Attempting to buy x" .. tostring(amountToBuy))
+
+            if amountToBuy > 0 then
+                for i = 1, amountToBuy do
+                    game:GetService("ReplicatedStorage").Events.Unlock:FireServer(itemName, "the_interwebs")
+                end
+                Library:Notify("Success: Bought " .. tostring(amountToBuy) .. "x " .. itemName)
+            else
+                print("[DEBUG] Not enough money to buy even one.")
+            end
+        else
+            print("[DEBUG] Price was invalid or zero.")
+        end
+    else
+        print("[DEBUG] Could not find Item Frame or 'Item Price' text label.")
+    end
+end
+
+-- Toggle for Auto-Buy
+ShopGroupBox:AddToggle("ShopFeatureToggle", {
+    Text = "Enable Auto-Buy Max",
+    Default = false,
+    Tooltip = "Automatically buys max amount when turned on or item changed.",
+    
+    Callback = function(Value)
+        if Value then
+            BuyMaxItems()
+        end
+    end
+})
+
+--- Logic to fetch names from the specified path
+local function GetUnlocksList()
+    local unlocks = {}
+    local path = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+        and game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("PlayerUI")
+        and game:GetService("Players").LocalPlayer.PlayerGui.PlayerUI:FindFirstChild("the_interwebs")
+        and game:GetService("Players").LocalPlayer.PlayerGui.PlayerUI.the_interwebs:FindFirstChild("Unlocks")
+
+    if path then
+        for _, child in ipairs(path:GetChildren()) do
+            if child:IsA("Frame") then
+                table.insert(unlocks, child.Name)
+            end
+        end
+    else
+        table.insert(unlocks, "No Unlocks Found")
+    end
+    
+    return unlocks
+end
+
+-- Creating the Dropdown
+ShopGroupBox:AddDropdown("UnlocksDropdown", {
+    Values = GetUnlocksList(),
+    Default = 1,
+    Multi = false,
+    Text = "Available Unlocks",
+    Tooltip = "Select an item",
+    Searchable = true,
+
+    Callback = function(Value)
+        BuyMaxItems()
+    end,
+})
+
+-- Refresh button
+ShopGroupBox:AddButton({
+    Text = "Refresh List",
+    Func = function()
+        local newList = GetUnlocksList()
+        Options.UnlocksDropdown:SetValues(newList)
+        Library:Notify("Dropdown refreshed!")
+    end
 })
 
 -- // UI Settings \\ --
