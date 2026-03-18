@@ -2657,6 +2657,7 @@ local Tabs = {
     Player = Window:AddTab("Player", "user"),
     Visuals = Window:AddTab("Visuals", "eye"),
     Teleports = Window:AddTab("Teleports", "map-pin"),
+    Vulns = Window:AddTab("Vulns.", "bug"),
     Misc = Window:AddTab("Misc", "wrench"),
     Extras = Window:AddTab("Extras", "boxes"),
 	["UI Settings"] = Window:AddTab("UI Settings", "settings"),
@@ -4762,6 +4763,81 @@ Toggles.AutoAltar:OnChanged(function()
         end)
     end
 end)
+
+local MarketplaceService = game:GetService("MarketplaceService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- Fetch the executor's thread identity functions
+local setidentity = setthreadidentity or set_thread_identity or setthreadcontext or (syn and syn.set_thread_identity)
+local getidentity = getthreadidentity or get_thread_identity or getthreadcontext or (syn and syn.set_thread_identity)
+
+local Group = Tabs.Vulns:AddLeftGroupbox("Vulnerabilities")
+
+-- Fetch products
+local ProductNames = {}
+local ProductIdMap = {}
+
+local success, pages = pcall(function() return MarketplaceService:GetDeveloperProductsAsync() end)
+if success then
+    while true do
+        for _, item in pairs(pages:GetCurrentPage()) do
+            table.insert(ProductNames, item.Name)
+            ProductIdMap[item.Name] = item.ProductId
+        end
+        if pages.IsFinished then break end
+        pages:AdvanceToNextPageAsync()
+    end
+end
+
+-- UI Elements
+Group:AddDropdown("ProductSelect", {
+    Values = ProductNames,
+    Default = 1,
+    Text = "Select Product",
+})
+
+-- The core purchase function logic
+local function buyProduct()
+    local selectedName = Library.Options.ProductSelect.Value
+    local productId = ProductIdMap[selectedName]
+    
+    if not productId or not setidentity or not getidentity then return end
+
+    local oldIdentity = getidentity()
+    pcall(function()
+        setidentity(7) 
+        -- Signal the game that the purchase was "successful"
+        MarketplaceService:SignalPromptProductPurchaseFinished(LocalPlayer.UserId, productId, true)
+        setidentity(oldIdentity) 
+    end)
+end
+
+Group:AddButton({
+    Text = "Buy Product (Once)",
+    Func = buyProduct,
+    Tooltip = "Buys the selected product once."
+})
+
+-- NEW: Auto Buy Toggle
+Group:AddToggle("AutoBuyToggle", {
+    Text = "Auto Buy Selected Product",
+    Default = false,
+    Tooltip = "gas gas GASS",
+    Callback = function(Value)
+        if Value then
+            -- Run in a separate thread so it doesn't hang the script
+            task.spawn(function()
+                while Library.Toggles.AutoBuyToggle.Value do
+                    buyProduct()
+                    -- task.wait() is much more optimized than wait()
+                    -- This runs at roughly 60 times per second
+                    task.wait() 
+                end
+            end)
+        end
+    end
+})
 
 -- // UI Settings \\ --
 
