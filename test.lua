@@ -4555,79 +4555,49 @@ CookGroup:AddButton({
     Tooltip = "Verify ingredients and start cooking"
 })
 
-local ShopGroupBox = Tabs.Main:AddRightGroupbox("[BETA] Shop")
+local ShopGroupBox = Tabs.Main:AddRightGroupbox("Shop")
 
--- Function to handle the buying logic
-local function BuyMaxItems()
-    local itemName = Options.UnlocksDropdown.Value
-    local isToggled = Toggles.ShopFeatureToggle.Value
+-- Helper to convert shorthand (1k, 1m, 1b) to numbers
+local function ParseShorthand(str)
+    if not str then return 0 end
+    str = str:lower():gsub(",", "")
     
-    if not isToggled or not itemName or itemName == "No Unlocks Found" then 
-        return 
+    local numberPart = tonumber(str:match("[%d%.]+"))
+    if not numberPart then return 0 end
+
+    if str:find("k") then return numberPart * 10^3
+    elseif str:find("m") then return numberPart * 10^6
+    elseif str:find("b") then return numberPart * 10^9
+    elseif str:find("t") then return numberPart * 10^12
     end
 
-    local player = game:GetService("Players").LocalPlayer
-    local moneyValueObject = player:FindFirstChild("Money")
-    
-    if not moneyValueObject then
-        print("[DEBUG] Money object not found at LocalPlayer.Money")
-        return
-    end
+    return numberPart
+end
 
-    local money = moneyValueObject.Value
-    local unlockFolder = player.PlayerGui.PlayerUI.the_interwebs.Unlocks
-    local itemFrame = unlockFolder:FindFirstChild(itemName)
-    
-    if itemFrame and itemFrame:FindFirstChild("Item Price") then
-        local rawPriceText = itemFrame["Item Price"].Text
-        
-        -- Improved price extraction: finds the first number in the string
-        -- This handles "Price:$100", "Price: $100", or "Price: 1,000"
-        local cleanPrice = rawPriceText:gsub(",", ""):match("%d+")
-        local price = tonumber(cleanPrice)
-
-        print("[DEBUG] Item:", itemName, "| Money:", money, "| Price:", price)
-
-        if price and price > 0 then
-            local amountToBuy = math.floor(money / price)
-            print("[DEBUG] Attempting to buy x" .. tostring(amountToBuy))
-
-            if amountToBuy > 0 then
-                for i = 1, amountToBuy do
-                    game:GetService("ReplicatedStorage").Events.Unlock:FireServer(itemName, "the_interwebs")
-                end
-                Library:Notify("Success: Bought " .. tostring(amountToBuy) .. "x " .. itemName)
-            else
-                print("[DEBUG] Not enough money to buy even one.")
-            end
-        else
-            print("[DEBUG] Price was invalid or zero.")
-        end
+-- Helper to convert large numbers back to shorthand (e.g., 1000000 -> 1M)
+local function FormatShorthand(n)
+    n = tonumber(n) or 0
+    if n >= 10^12 then
+        return string.format("%.2fT", n / 10^12)
+    elseif n >= 10^9 then
+        return string.format("%.2fB", n / 10^9)
+    elseif n >= 10^6 then
+        return string.format("%.2fM", n / 10^6)
+    elseif n >= 10^3 then
+        return string.format("%.2fK", n / 10^3)
     else
-        print("[DEBUG] Could not find Item Frame or 'Item Price' text label.")
+        return tostring(math.floor(n))
     end
 end
 
--- Toggle for Auto-Buy
-ShopGroupBox:AddToggle("ShopFeatureToggle", {
-    Text = "Enable Auto-Buy Max",
-    Default = false,
-    Tooltip = "Automatically buys max amount when turned on or item changed.",
-    
-    Callback = function(Value)
-        if Value then
-            BuyMaxItems()
-        end
-    end
-})
-
---- Logic to fetch names from the specified path
+--- Logic to fetch names from the UI path
 local function GetUnlocksList()
     local unlocks = {}
-    local path = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
-        and game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("PlayerUI")
-        and game:GetService("Players").LocalPlayer.PlayerGui.PlayerUI:FindFirstChild("the_interwebs")
-        and game:GetService("Players").LocalPlayer.PlayerGui.PlayerUI.the_interwebs:FindFirstChild("Unlocks")
+    local player = game:GetService("Players").LocalPlayer
+    local path = player:FindFirstChild("PlayerGui")
+        and player.PlayerGui:FindFirstChild("PlayerUI")
+        and player.PlayerGui.PlayerUI:FindFirstChild("the_interwebs")
+        and player.PlayerGui.PlayerUI.the_interwebs:FindFirstChild("Unlocks")
 
     if path then
         for _, child in ipairs(path:GetChildren()) do
@@ -4639,30 +4609,92 @@ local function GetUnlocksList()
         table.insert(unlocks, "No Unlocks Found")
     end
     
-    return unlocks
+    return #unlocks > 0 and unlocks or {"No Unlocks Found"}
 end
 
--- Creating the Dropdown
-ShopGroupBox:AddDropdown("UnlocksDropdown", {
+-- 1. Unified Dropdown
+ShopGroupBox:AddDropdown("SmartUnlocksDropdown", {
     Values = GetUnlocksList(),
     Default = 1,
-    Multi = false,
     Text = "Available Unlocks",
-    Tooltip = "Select an item",
+    Tooltip = "Select any item (Money or Gold)",
     Searchable = true,
-
-    Callback = function(Value)
-        BuyMaxItems()
-    end,
 })
 
--- Refresh button
+-- 2. Amount Input
+ShopGroupBox:AddInput("SmartBuyAmountInput", {
+    Default = "1",
+    Numeric = true,
+    Text = "Purchase Amount",
+    Placeholder = "Enter amount...",
+})
+
+-- 3. The Smart Buy Button
+ShopGroupBox:AddButton({
+    Text = "Buy Selected Amount",
+    Func = function()
+        local itemName = Options.SmartUnlocksDropdown.Value
+        local amount = tonumber(Options.SmartBuyAmountInput.Value)
+        
+        if not itemName or itemName == "No Unlocks Found" or not amount or amount <= 0 then
+            return Library:Notify("Invalid selection or amount!", 3)
+        end
+
+        local player = game:GetService("Players").LocalPlayer
+        local unlockFolder = player.PlayerGui.PlayerUI.the_interwebs.Unlocks
+        local itemFrame = unlockFolder:FindFirstChild(itemName)
+        
+        if itemFrame then
+            -- NEW: Check for Ownership via the TextButton
+            local buyButton = itemFrame:FindFirstChildWhichIsA("TextButton")
+            if buyButton then
+                local status = buyButton.Text -- or buyButton.ContentText
+                if status:find("Owned") then
+                    return Library:Notify("Item already owned!", 3)
+                end
+            end
+
+            -- Proceed with Price Logic if not owned
+            if itemFrame:FindFirstChild("Item Price") then
+                local rawPriceText = itemFrame["Item Price"].Text
+                local isGold = rawPriceText:lower():find("gold")
+                
+                local currencyValue = isGold and player:FindFirstChild("Gold") or player:FindFirstChild("Money")
+                local currencyName = isGold and "Gold" or "Money"
+                
+                if not currencyValue then
+                    return Library:Notify("Error: " .. currencyName .. " object not found!", 3)
+                end
+
+                local cleanedText = rawPriceText:gsub("Price:", ""):gsub("Gold", ""):gsub("%$", ""):gsub(" ", "")
+                local pricePerItem = ParseShorthand(cleanedText)
+                local totalCost = pricePerItem * amount
+
+                if currencyValue.Value >= totalCost then
+                    for i = 1, amount do
+                        game:GetService("ReplicatedStorage").Events.Unlock:FireServer(itemName, "the_interwebs")
+                    end
+                    Library:Notify("Success! Bought " .. amount .. "x " .. itemName .. " for " .. FormatShorthand(totalCost) .. " " .. currencyName, 3)
+                else
+                    local missing = totalCost - currencyValue.Value
+                    Library:Notify("No " .. currencyName:lower() .. "! You need " .. FormatShorthand(missing) .. " more.", 3)
+                end
+            else
+                Library:Notify("Could not find item price in UI.", 3)
+            end
+        else
+            Library:Notify("Could not find item frame.", 3)
+        end
+    end,
+    Tooltip = "Checks ownership and currency before buying"
+})
+
+-- 4. Refresh Button
 ShopGroupBox:AddButton({
     Text = "Refresh List",
     Func = function()
-        local newList = GetUnlocksList()
-        Options.UnlocksDropdown:SetValues(newList)
-        Library:Notify("Dropdown refreshed!")
+        Options.SmartUnlocksDropdown:SetValues(GetUnlocksList())
+        Library:Notify("List updated!", 2)
     end
 })
 
