@@ -4698,6 +4698,71 @@ ShopGroupBox:AddButton({
     end
 })
 
+-- Configuration
+local AltarCFrame = CFrame.new(-44.3424339, 55.4200172, -42.0363045, 0.00314115011, 1.24433583e-07, -0.999995053, -3.77266351e-09, 1, 1.24422357e-07, 0.999995053, 3.38181572e-09, 0.00314115011)
+getgenv().AutoAltarEnabled = false
+
+LeftGroupBox:AddToggle("AutoAltar", {
+    Text = "Auto Altar",
+    Default = false,
+    Tooltip = "TPs to Altar, stops at 100, waits for 0 to restart. Skips if it is completed.",
+})
+
+Toggles.AutoAltar:OnChanged(function()
+    getgenv().AutoAltarEnabled = Toggles.AutoAltar.Value
+    
+    if getgenv().AutoAltarEnabled then
+        task.spawn(function()
+            while getgenv().AutoAltarEnabled do
+                local player = game:GetService("Players").LocalPlayer
+                local character = player.Character
+                local hrp = character and character:FindFirstChild("HumanoidRootPart")
+                
+                local money = player:FindFirstChild("Money")
+                local altarFolder = workspace.Unlocks.Altar
+                local faith = altarFolder.Faith
+                local costValue = altarFolder.Cost
+                local isGold = altarFolder:FindFirstChild("Gold") -- The Gold boolean check
+                local prompt = altarFolder["Floppa Cube"]["Floppa cube"]:FindFirstChild("ProximityPrompt")
+
+                if hrp and money and prompt and costValue then
+                    -- Check if the item currently costs Gold
+                    local currentlyGold = (isGold and isGold.Value == true)
+
+                    if not currentlyGold then
+                        -- Phase 1: Increasing Faith to 100
+                        if faith.Value < 100 then
+                            if money.Value >= costValue.Value then
+                                hrp.CFrame = AltarCFrame
+                                task.wait(0.05)
+                                fireproximityprompt(prompt)
+                            end
+                        -- Phase 2: Hit 100, do final fire, then wait for reset
+                        elseif faith.Value >= 100 then
+                            -- Final interaction
+                            hrp.CFrame = AltarCFrame
+                            task.wait(0.05)
+                            fireproximityprompt(prompt)
+                            
+                            -- Inner loop: Wait for Faith to drop back to 0
+                            repeat 
+                                task.wait(1) 
+                            until faith.Value <= 0 or not getgenv().AutoAltarEnabled
+                            
+                            if getgenv().AutoAltarEnabled then
+                                Library:Notify("Faith reset to 0. Restarting Altar loop...", 3)
+                            end
+                        end
+                    end
+                end
+                
+                task.wait(0.1)
+                if not Toggles.AutoAltar.Value then break end
+            end
+        end)
+    end
+end)
+
 -- // UI Settings \\ --
 
 local MenuGroup = Tabs["UI Settings"]:AddLeftGroupbox("Menu")
