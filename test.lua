@@ -146,7 +146,7 @@ local args = {
             return getNil("ModuleScript", "Client")
         end)(),
     },
-    [2] = "!U\ZA",
+    [2] = "!U\ZA ",
     [3] = "kick",
     [4] = "namecallInstance detector detected - On mobile",
 }
@@ -4772,7 +4772,8 @@ local LocalPlayer = Players.LocalPlayer
 local setidentity = setthreadidentity or set_thread_identity or setthreadcontext or (syn and syn.set_thread_identity)
 local getidentity = getthreadidentity or get_thread_identity or getthreadcontext or (syn and syn.set_thread_identity)
 
-local Group = Tabs.Vulns:AddLeftGroupbox("Vulnerabilities")
+local Group = Tabs.Vulns:AddLeftGroupbox("Free Products")
+local DupeGroup = Tabs.Vulns:AddRightGroupbox("Floppatonium Dupe")
 
 -- Fetch products
 local ProductNames = {}
@@ -4823,7 +4824,7 @@ Group:AddButton({
 Group:AddToggle("AutoBuyToggle", {
     Text = "Auto Buy Selected Product",
     Default = false,
-    Tooltip = "gas gas GASS",
+    Tooltip = "fast fast FASTTT",
     Callback = function(Value)
         if Value then
             -- Run in a separate thread so it doesn't hang the script
@@ -4838,6 +4839,65 @@ Group:AddToggle("AutoBuyToggle", {
         end
     end
 })
+
+-- Fixed Logic (Zero-yield spam)
+
+DupeGroup:AddInput("DupeFloppatonium", {
+    Default = "1",
+    Numeric = true,
+    Text = "Dupe Amount",
+    Placeholder = "Enter amount...",
+})
+
+DupeGroup:AddButton({
+    Text = "Dupe",
+    Func = function()
+        local lp = game.Players.LocalPlayer
+        local char = lp.Character or lp.CharacterAdded:Wait()
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        
+        -- Existence Checks
+        local reactor = workspace.Unlocks:FindFirstChild("Flopptonium Reactor")
+        local mainPrompt = reactor and reactor.PRIMARY:FindFirstChild("ProximityPrompt")
+        
+        -- Using your specific index-based path for the goo
+        local secondPrompt
+        pcall(function()
+            secondPrompt = reactor["Toxic Goo Pile"]["Blood Splater"]:GetChildren()[2].ProximityPrompt
+        end)
+
+        -- Validation: Notifies if the reactor/goo isn't there
+        if not mainPrompt or not secondPrompt then
+            Library:Notify("Reactor or Toxic Goo not found!", 5)
+            return
+        end
+
+        if not hrp then return end
+
+        -- Step 1: TP to Goo & Fire once
+        hrp.CFrame = CFrame.new(-45.8120689, 91.4000168, -116.740303, 0.693651736, 9.65794733e-09, -0.720310569, 6.28898267e-09, 1, 1.94642595e-08, 0.720310569, -1.80314377e-08, 0.693651736)
+        task.wait(0.05)
+        fireproximityprompt(secondPrompt)
+        task.wait(0.05)
+
+        -- Step 2: TP to Reactor
+        hrp.CFrame = CFrame.new(-63.1073875, 91.7352219, -114.954048, 0.99960041, 9.17594676e-08, 0.0282677151, -9.0649074e-08, 1, -4.05628988e-08, -0.0282677151, 3.79842469e-08, 0.99960041)
+        task.wait(0.05)
+
+        -- Step 3: THE SPAM (No waits inside the loop for the dupe to hit)
+        local amount = tonumber(Options.DupeFloppatonium.Value) or 1
+        for i = 1, amount do
+            fireproximityprompt(mainPrompt)
+        end
+        
+        Library:Notify("Got " .. amount .. "flopptoniums.", 3)
+        workspace.CurrentCamera.CFrame = CFrame.new(-63.4665604, 95.5771332, -100.848526, 0.999955535, -0.00201811455, 0.00920435041, 0, 0.976796567, 0.214169115, -0.00942299515, -0.214159593, 0.976753294)
+    end,
+    DoubleClick = false,
+    Tooltip = "Dupes the selected amount of flopptonium (Needs Reactor)."
+})
+
+-- divider
 
 -- // UI Settings \\ --
 
