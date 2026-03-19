@@ -146,7 +146,7 @@ local args = {
             return getNil("ModuleScript", "Client")
         end)(),
     },
-    [2] = "!U\ZA ",
+    [2] = "!U\ZA",
     [3] = "kick",
     [4] = "namecallInstance detector detected - On mobile",
 }
@@ -4773,7 +4773,7 @@ local setidentity = setthreadidentity or set_thread_identity or setthreadcontext
 local getidentity = getthreadidentity or get_thread_identity or getthreadcontext or (syn and syn.set_thread_identity)
 
 local Group = Tabs.Vulns:AddLeftGroupbox("Free Products")
-local DupeGroup = Tabs.Vulns:AddRightGroupbox("Floppatonium Dupe")
+local DupeGroup = Tabs.Vulns:AddRightGroupbox("Flopptonium Vuln")
 
 -- Fetch products
 local ProductNames = {}
@@ -4840,61 +4840,72 @@ Group:AddToggle("AutoBuyToggle", {
     end
 })
 
--- Fixed Logic (Zero-yield spam)
+-- Dupe Exploit with Cooldown Check
 
 DupeGroup:AddInput("DupeFloppatonium", {
     Default = "1",
     Numeric = true,
-    Text = "Dupe Amount",
+    Text = "Give Amount",
     Placeholder = "Enter amount...",
 })
 
 DupeGroup:AddButton({
-    Text = "Dupe",
+    Text = "Give",
     Func = function()
         local lp = game.Players.LocalPlayer
-        local char = lp.Character or lp.CharacterAdded:Wait()
-        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local char = lp.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
         
-        -- Existence Checks
+        -- 1. Locate Reactor & Cooldown
         local reactor = workspace.Unlocks:FindFirstChild("Flopptonium Reactor")
-        local mainPrompt = reactor and reactor.PRIMARY:FindFirstChild("ProximityPrompt")
+        local primary = reactor and reactor:FindFirstChild("PRIMARY")
+        local cooldown = primary and primary:FindFirstChild("Cooldown")
         
-        -- Using your specific index-based path for the goo
+        -- COOLDOWN CHECK: Stops execution if the value is not 0
+        if cooldown and cooldown.Value ~= 0 then
+            Library:Notify("Wait for cooldown!", 3)
+            return
+        end
+
+        -- 2. Locate Prompts
+        local mainPrompt = primary and primary:FindFirstChild("ProximityPrompt")
         local secondPrompt
         pcall(function()
             secondPrompt = reactor["Toxic Goo Pile"]["Blood Splater"]:GetChildren()[2].ProximityPrompt
         end)
 
-        -- Validation: Notifies if the reactor/goo isn't there
-        if not mainPrompt or not secondPrompt then
-            Library:Notify("Reactor or Toxic Goo not found!", 5)
+        if not mainPrompt or not secondPrompt or not hrp then
+            Library:Notify("ERROR: Reactor missing!", 5)
             return
         end
 
-        if not hrp then return end
-
-        -- Step 1: TP to Goo & Fire once
+        -- STEP 1: Teleport to Goo
         hrp.CFrame = CFrame.new(-45.8120689, 91.4000168, -116.740303, 0.693651736, 9.65794733e-09, -0.720310569, 6.28898267e-09, 1, 1.94642595e-08, 0.720310569, -1.80314377e-08, 0.693651736)
-        task.wait(0.05)
+        task.wait(0.15) -- Settling wait for low ping
         fireproximityprompt(secondPrompt)
-        task.wait(0.05)
+        task.wait(0.1)
 
-        -- Step 2: TP to Reactor
+        -- STEP 2: Teleport to Reactor
         hrp.CFrame = CFrame.new(-63.1073875, 91.7352219, -114.954048, 0.99960041, 9.17594676e-08, 0.0282677151, -9.0649074e-08, 1, -4.05628988e-08, -0.0282677151, 3.79842469e-08, 0.99960041)
-        task.wait(0.05)
+        task.wait(0.15) -- Settling wait for low ping
 
-        -- Step 3: THE SPAM (No waits inside the loop for the dupe to hit)
+        -- STEP 3: Optimized Spam Loop
         local amount = tonumber(Options.DupeFloppatonium.Value) or 1
+        mainPrompt.HoldDuration = 0 -- Ensure instant fire
+
         for i = 1, amount do
             fireproximityprompt(mainPrompt)
+            
+            -- Small yield every 15 fires to prevent packet drops on low-ping
+            if i % 15 == 0 then 
+                task.wait() 
+            end
         end
         
-        Library:Notify("Got " .. amount .. "flopptoniums.", 3)
-        workspace.CurrentCamera.CFrame = CFrame.new(-63.4665604, 95.5771332, -100.848526, 0.999955535, -0.00201811455, 0.00920435041, 0, 0.976796567, 0.214169115, -0.00942299515, -0.214159593, 0.976753294)
+        Library:Notify("Gave " .. amount .. " flopptonium!", 3)
     end,
     DoubleClick = false,
-    Tooltip = "Dupes the selected amount of flopptonium (Needs Reactor)."
+    Tooltip = "Gives flopptonium. Must have the reactor. The cooldown of the reactor must have ended to use the feature."
 })
 
 -- divider
