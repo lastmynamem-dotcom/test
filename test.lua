@@ -1,5 +1,3 @@
--- test
-
 repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
@@ -2577,7 +2575,7 @@ SaveManager:BuildConfigSection(Tabs["UI Settings"])
 ThemeManager:ApplyToTab(Tabs["UI Settings"])
 SaveManager:LoadAutoloadConfig()
 
-elseif currentID == 9772878203 or 9921522947 then
+elseif currentID == 9772878203 or currentID == 9921522947 then
     
 for _, x in pairs(game.Workspace:GetDescendants()) do
     if x:IsA("ProximityPrompt") then
@@ -4973,6 +4971,231 @@ SaveManager:SetSubFolder("specific-place")
 SaveManager:BuildConfigSection(Tabs["UI Settings"])
 ThemeManager:ApplyToTab(Tabs["UI Settings"])
 SaveManager:LoadAutoloadConfig()
+elseif currentID == 286090429 then
+    local repo = 'https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/'
+local Library = loadstring(game:HttpGet(repo .. 'Library.lua'))()
+local ThemeManager = loadstring(game:HttpGet(repo .. 'addons/ThemeManager.lua'))()
+local SaveManager = loadstring(game:HttpGet(repo .. 'addons/SaveManager.lua'))()
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+local Window = Library:CreateWindow({
+    Title = "Synth Hub",
+    Center = true,
+    AutoShow = true,
+    TabPadding = 8,
+    MenuFadeTime = 0.2
+})
+
+local Tabs = {
+    Main = Window:AddTab("Main"),
+    Visuals = Window:AddTab("Visuals"),
+    Player = Window:AddTab("Player"),
+    ['UI Settings'] = Window:AddTab('UI Settings'),
+}
+
+local Connections = {}
+
+-- [ AIMING GROUP ] --
+local AimBox = Tabs.Main:AddLeftGroupbox('Aimbot')
+AimBox:AddToggle('Aimbot', { Text = 'Aimbot', Default = false })
+AimBox:AddToggle('AimbotTeamCheck', { Text = 'Team Check', Default = true })
+AimBox:AddDropdown('AimbotPart', { Values = { 'Head', 'Torso' }, Default = 1, Text = 'Target Part' })
+AimBox:AddSlider('AimbotSmoothness', { Text = 'Smoothness', Default = 2, Min = 0, Max = 20, Rounding = 1, Compact = true })
+
+-- [ SILENT AIM / HITBOX GROUP ] --
+local SilentBox = Tabs.Main:AddRightGroupbox('Silent Aim')
+SilentBox:AddToggle('SilentAim', { Text = 'Silent Aim', Default = false })
+SilentBox:AddToggle('SilentTeamCheck', { Text = 'Team Check', Default = true })
+SilentBox:AddDropdown('SilentPart', { Values = { 'Head', 'Torso' }, Default = 1, Text = 'Target Part' })
+SilentBox:AddSlider('HitboxSize', { Text = 'Hitbox Size', Default = 13, Min = 2, Max = 25, Rounding = 0, Compact = true })
+
+-- [ GUN MODS GROUP ] --
+local GunBox = Tabs.Main:AddLeftGroupbox('Gun Mods')
+GunBox:AddToggle('NoRecoil', { Text = 'No Recoil', Default = false })
+GunBox:AddToggle('RapidFire', { Text = 'Rapid Fire', Default = false })
+
+-- [ PLAYER TAB ] --
+local MoveBox = Tabs.Player:AddLeftGroupbox('Movement')
+
+MoveBox:AddToggle('SpeedEnabled', { Text = 'Speed Hack', Default = false })
+local SpeedDepBox = MoveBox:AddDependencyBox()
+SpeedDepBox:AddSlider('SpeedValue', { Text = 'Value', Default = 16, Min = 16, Max = 100, Rounding = 0, Compact = true })
+SpeedDepBox:SetupDependencies({{ Toggles.SpeedEnabled, true }})
+
+MoveBox:AddToggle('FlyEnabled', { Text = 'Fly', Default = false })
+local FlyDepBox = MoveBox:AddDependencyBox()
+FlyDepBox:AddSlider('FlySpeed', { Text = 'Fly Speed', Default = 50, Min = 10, Max = 200, Rounding = 0, Compact = true })
+FlyDepBox:SetupDependencies({{ Toggles.FlyEnabled, true }})
+
+-- [ NEW FLIGHT & SPEED ENGINE ] --
+Connections.Movement = RunService.RenderStepped:Connect(function(deltaTime)
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChild("Humanoid")
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+
+    if hum and hrp and hum.Health > 0 then
+        -- CFrame Flight Logic
+        if Toggles.FlyEnabled.Value then
+            hum.PlatformStand = true
+            hrp.Velocity = Vector3.new(0, 0, 0) -- Kill falling velocity
+            
+            local moveDir = Vector3.new(0,0,0)
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir += Camera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir -= Camera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir += Camera.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir -= Camera.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.new(0, 1, 0) end
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir -= Vector3.new(0, 1, 0) end
+            
+            if moveDir.Magnitude > 0 then
+                hrp.CFrame = hrp.CFrame + (moveDir.Unit * Options.FlySpeed.Value * deltaTime)
+            end
+        else
+            hum.PlatformStand = false
+            -- Speed Hack Logic
+            if Toggles.SpeedEnabled.Value and hum.MoveDirection.Magnitude > 0 then
+                hrp.CFrame = hrp.CFrame + (hum.MoveDirection * (Options.SpeedValue.Value * deltaTime))
+            end
+        end
+    end
+end)
+
+-- [ VISUALS ] --
+local VisualBox = Tabs.Visuals:AddLeftGroupbox('ESP')
+VisualBox:AddToggle('ESP_Box', { Text = '2D Boxes', Default = false })
+VisualBox:AddToggle('ESP_Tracer', { Text = 'Tracers', Default = false })
+VisualBox:AddLabel('Color'):AddColorPicker('ESPColor', { Default = Color3.fromRGB(255, 255, 255) })
+
+-- [ SILENT AIM / HITBOX ENGINE ] --
+Connections.Hitbox = RunService.RenderStepped:Connect(function()
+    if Toggles.SilentAim.Value then
+        local sizeVal = Options.HitboxSize.Value
+        local partToExpand = (Options.SilentPart.Value == "Head" and "HeadHB") or "HumanoidRootPart" 
+        for _, v in pairs(Players:GetPlayers()) do
+            if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("Humanoid") and v.Character.Humanoid.Health > 0 then
+                if Toggles.SilentTeamCheck.Value and v.Team == LocalPlayer.Team then continue end
+                local p = v.Character:FindFirstChild(partToExpand)
+                if p then
+                    p.Size, p.CanCollide, p.Massless, p.Transparency = Vector3.new(sizeVal, sizeVal, sizeVal), false, true, 0.7
+                end
+            end
+        end
+    end
+end)
+
+-- [ AIMBOT ENGINE ] --
+local function GetClosestPlayer()
+    local Target, Dist = nil, math.huge
+    local aimPartName = (Options.AimbotPart.Value == "Head" and "Head") or "HumanoidRootPart"
+    for _, v in pairs(Players:GetPlayers()) do
+        if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild(aimPartName) and v.Character:FindFirstChild("Humanoid") and v.Character.Humanoid.Health > 0 then
+            if Toggles.AimbotTeamCheck.Value and v.Team == LocalPlayer.Team then continue end
+            local ScreenPos, OnScreen = Camera:WorldToViewportPoint(v.Character[aimPartName].Position)
+            if OnScreen then
+                local Mag = (Vector2.new(ScreenPos.X, ScreenPos.Y) - UserInputService:GetMouseLocation()).Magnitude
+                if Mag < Dist then Target, Dist = v.Character[aimPartName], Mag end
+            end
+        end
+    end
+    return Target
+end
+
+Connections.Aimbot = RunService.RenderStepped:Connect(function()
+    if Toggles.Aimbot.Value and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+        local T = GetClosestPlayer()
+        if T then
+            local Smooth = Options.AimbotSmoothness.Value
+            if Smooth == 0 then
+                Camera.CFrame = CFrame.new(Camera.CFrame.Position, T.Position)
+            else
+                Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, T.Position), 1 / (Smooth + 1))
+            end
+        end
+    end
+end)
+
+-- [ GUN MODS ENGINE (Rapid Fire & No Recoil) ] --
+task.spawn(function()
+    while task.wait(5) do
+        -- Only run the loop if at least one of the mods is enabled
+        if Toggles.RapidFire.Value or Toggles.NoRecoil.Value then
+            local weaponsFolder = ReplicatedStorage:FindFirstChild("Weapons")
+            
+            if weaponsFolder then
+                for _, v in pairs(weaponsFolder:GetDescendants()) do
+                    
+                    -- Rapid Fire Logic
+                    if Toggles.RapidFire.Value then
+                        if v.Name == "Auto" then
+                            v.Value = true
+                        elseif v.Name == "FireRate" then
+                            v.Value = 0.02
+                        end
+                    end
+                    
+                    -- No Recoil Logic
+                    if Toggles.NoRecoil.Value then
+                        if v.Name == "RecoilControl" then
+                            v.Value = 0
+                        elseif v.Name == "MaxSpread" then
+                            v.Value = 0
+                        end
+                    end
+                    
+                end
+            end
+        end
+    end
+end)
+
+-- [ ESP ENGINE ] --
+local function CreateESP(Player)
+    local Box, Tracer = Drawing.new("Square"), Drawing.new("Line")
+    Box.Thickness, Tracer.Thickness = 1, 1
+    local ESPCon
+    ESPCon = RunService.RenderStepped:Connect(function()
+        if not Player.Parent then Box:Remove() Tracer:Remove() ESPCon:Disconnect() return end
+        if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") and Player.Character:FindFirstChild("Humanoid") and Player.Character.Humanoid.Health > 0 then
+            local Pos, OnScreen = Camera:WorldToViewportPoint(Player.Character.HumanoidRootPart.Position)
+            if OnScreen and not (Toggles.AimbotTeamCheck.Value and Player.Team == LocalPlayer.Team) then
+                if Toggles.ESP_Box.Value then
+                    local Size = (Camera:WorldToViewportPoint(Player.Character.HumanoidRootPart.Position - Vector3.new(0, 3, 0)).Y - Camera:WorldToViewportPoint(Player.Character.HumanoidRootPart.Position + Vector3.new(0, 2.6, 0)).Y)
+                    Box.Size = Vector2.new(Size * 0.7, Size)
+                    Box.Position = Vector2.new(Pos.X - Box.Size.X / 2, Pos.Y - Box.Size.Y / 2)
+                    Box.Color, Box.Visible = Options.ESPColor.Value, true
+                else Box.Visible = false end
+                if Toggles.ESP_Tracer.Value then
+                    Tracer.From, Tracer.To = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y), Vector2.new(Pos.X, Pos.Y)
+                    Tracer.Color, Tracer.Visible = Options.ESPColor.Value, true
+                else Tracer.Visible = false end
+            else Box.Visible, Tracer.Visible = false, false end
+        else Box.Visible, Tracer.Visible = false, false end
+    end)
+end
+
+for _, v in pairs(Players:GetPlayers()) do if v ~= LocalPlayer then CreateESP(v) end end
+Players.PlayerAdded:Connect(CreateESP)
+
+-- [ CONFIG & UNLOAD ] --
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+ThemeManager:SetFolder('SynthHub')
+SaveManager:SetFolder('SynthHub/Arsenal')
+SaveManager:BuildConfigSection(Tabs['UI Settings'])
+
+local SettingsBox = Tabs['UI Settings']:AddLeftGroupbox('Menu')
+SettingsBox:AddButton('Unload', function()
+    for _, v in pairs(Connections) do v:Disconnect() end
+    Library:Unload()
+end)
+
+ThemeManager:ApplyToTab(Tabs['UI Settings'])
 else
     warn("We do not support this game. In case you're in Dandy's World lobby, please join a match so it works.")
 end
