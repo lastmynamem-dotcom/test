@@ -5460,11 +5460,11 @@ RunService.RenderStepped:Connect(function(deltaTime)
         Lighting.Ambient, Lighting.OutdoorAmbient = Options.FullbrightColor.Value, Options.FullbrightColor.Value
     end
 
-    -- Speed Hack
+-- Speed Hack (FIXED TO 16)
     local char = LocalPlayer.Character
     if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") then
         if Toggles.SpeedEnabled and Toggles.SpeedEnabled.Value and char.Humanoid.MoveDirection.Magnitude > 0 then
-            char.HumanoidRootPart.CFrame += (char.Humanoid.MoveDirection * (16 * deltaTime))
+            char.HumanoidRootPart.CFrame += (char.Humanoid.MoveDirection * 16 * deltaTime)
         end
     end
 
