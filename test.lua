@@ -5258,6 +5258,258 @@ Tabs['UI Settings']:AddLeftGroupbox('Menu'):AddButton('Unload', function()
     AimbotCircle:Remove(); SilentCircle:Remove()
     Library:Unload()
 end)
+elseif currentID == 3678761576 then
+workspace.PrivateServerSettings.AntiCheat.Value = false
+
+local repo = 'https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/'
+local Library = loadstring(game:HttpGet(repo .. 'Library.lua'))()
+local ThemeManager = loadstring(game:HttpGet(repo .. 'addons/ThemeManager.lua'))()
+local SaveManager = loadstring(game:HttpGet(repo .. 'addons/SaveManager.lua'))()
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local Camera = workspace.CurrentCamera
+
+-- Store original lighting settings
+local OriginalFogStart = Lighting.FogStart
+local OriginalFogEnd = Lighting.FogEnd
+local OriginalAmbient = Lighting.Ambient
+local OriginalOutdoorAmbient = Lighting.OutdoorAmbient
+
+local Window = Library:CreateWindow({
+    Title = "Synth Hub",
+    Center = true,
+    AutoShow = true,
+    TabPadding = 8,
+    MenuFadeTime = 0.2
+})
+
+local Tabs = {
+    Main = Window:AddTab("Main"),
+    Visuals = Window:AddTab("Visuals"),
+    Player = Window:AddTab("Player"),
+    ['UI Settings'] = Window:AddTab('UI Settings'),
+}
+
+-- [ AIMBOT GROUP ] --
+local AimBox = Tabs.Main:AddLeftGroupbox('Aimbot')
+AimBox:AddToggle('Aimbot', { Text = 'Enabled', Default = false })
+AimBox:AddToggle('AimbotTeamCheck', { Text = 'Team Check', Default = true })
+AimBox:AddToggle('AimbotWallCheck', { Text = 'Wall Check', Default = false })
+AimBox:AddSlider('AimbotSmoothness', { Text = 'Smoothness', Default = 0, Min = 0, Max = 20, Rounding = 1, Compact = true })
+AimBox:AddDivider()
+AimBox:AddToggle('AimbotPrediction', { Text = 'Predict Movement', Default = false })
+AimBox:AddSlider('PredictionAmount', { Text = 'Intensity', Default = 0.050, Min = 0, Max = 1, Rounding = 3, Compact = true })
+AimBox:AddDivider()
+AimBox:AddToggle('AimbotUseFOV', { Text = 'Show FOV', Default = false })
+AimBox:AddSlider('AimbotFOVRadius', { Text = 'Radius', Default = 100, Min = 10, Max = 800, Rounding = 0, Compact = true })
+
+-- [ COMBAT GROUP ] --
+local CombatBox = Tabs.Main:AddRightGroupbox('Combat')
+CombatBox:AddToggle('TriggerBot', { Text = 'Trigger Bot', Default = false })
+CombatBox:AddToggle('TriggerTeamCheck', { Text = 'Team Check', Default = true })
+CombatBox:AddSlider('TriggerDelay', { Text = 'Delay (ms)', Default = 30, Min = 0, Max = 500, Rounding = 0, Compact = true })
+CombatBox:AddDivider()
+CombatBox:AddToggle('NoRecoil', { Text = 'No Recoil', Default = false })
+
+-- [ VISUALS TAB ] --
+local ESPBox = Tabs.Visuals:AddLeftGroupbox('ESP Settings')
+ESPBox:AddToggle('ESP_Box', { Text = 'Boxes', Default = false })
+ESPBox:AddToggle('ESP_Tracer', { Text = 'Tracers', Default = false })
+ESPBox:AddToggle('ESP_Names', { Text = 'Names', Default = false })
+ESPBox:AddToggle('ESPTeamCheck', { Text = 'Team Check', Default = true })
+ESPBox:AddLabel('Color'):AddColorPicker('ESPColor', { Default = Color3.fromRGB(255, 255, 255) })
+
+local WorldBox = Tabs.Visuals:AddRightGroupbox('World')
+WorldBox:AddToggle('NoFog', { Text = 'No Fog', Default = false })
+WorldBox:AddToggle('Fullbright', { Text = 'Fullbright', Default = false }):AddColorPicker('FullbrightColor', { Default = Color3.fromRGB(255, 255, 255) })
+
+-- [ PLAYER TAB ] --
+local MoveBox = Tabs.Player:AddLeftGroupbox('Movement')
+MoveBox:AddToggle('SpeedEnabled', { Text = 'Speed Hack', Default = false })
+
+-- [[ 2. CORE LOGIC FUNCTIONS ]] --
+
+local function IsVisible(part, character)
+    if not (Toggles.AimbotWallCheck and Toggles.AimbotWallCheck.Value) then return true end
+    local origin = Camera.CFrame.Position
+    local direction = (part.Position - origin)
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character, character, Camera}
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    raycastParams.IgnoreWater = true
+    local result = workspace:Raycast(origin, direction, raycastParams)
+    return (not result or result.Instance:IsDescendantOf(character))
+end
+
+local function GetClosestPlayer()
+    local Target, Closest = nil, math.huge
+    local mouseLoc = UserInputService:GetMouseLocation()
+    for _, v in pairs(Players:GetPlayers()) do
+        if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("Humanoid") and v.Character.Humanoid.Health > 0 then
+            -- Safety: Team Check
+            if Toggles.AimbotTeamCheck and Toggles.AimbotTeamCheck.Value and v.Team == LocalPlayer.Team then continue end
+            
+            local part = v.Character:FindFirstChild("Head") or v.Character:FindFirstChild("HeadHB")
+            if part then
+                local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                if onScreen and IsVisible(part, v.Character) then
+                    local mag = (Vector2.new(pos.X, pos.Y) - mouseLoc).Magnitude
+                    -- Safety: FOV Check
+                    local fovEnabled = Toggles.AimbotUseFOV and Toggles.AimbotUseFOV.Value
+                    local radius = Options.AimbotFOVRadius and Options.AimbotFOVRadius.Value or 100
+                    
+                    if (not fovEnabled or mag <= radius) then
+                        if mag < Closest then Closest = mag; Target = part end
+                    end
+                end
+            end
+        end
+    end
+    return Target
+end
+
+-- [[ 3. MAIN SYSTEMS AND LOOPS ]] --
+
+-- No Recoil Loop
+local lastRotation = Camera.CFrame.Rotation
+RunService:BindToRenderStep("MuteRecoil", Enum.RenderPriority.Camera.Value + 1, function()
+    -- Safety: Wait for UI
+    if not (Toggles.NoRecoil) then return end
+    
+    if not Toggles.NoRecoil.Value then 
+        lastRotation = Camera.CFrame.Rotation 
+        return 
+    end
+    
+    local currentCFrame = Camera.CFrame
+    local delta = UserInputService:GetMouseDelta()
+    
+    if delta.Magnitude < 0.1 then
+        Camera.CFrame = CFrame.new(currentCFrame.Position) * lastRotation
+    else
+        lastRotation = currentCFrame.Rotation
+    end
+end)
+
+-- ESP System
+local function CreateESP(Player)
+    local Box, Tracer, Name = Drawing.new("Square"), Drawing.new("Line"), Drawing.new("Text")
+    Box.Thickness, Tracer.Thickness = 1, 1
+    Name.Size, Name.Center, Name.Outline = 14, true, true
+    local ESPCon
+    ESPCon = RunService.RenderStepped:Connect(function()
+        -- Safety: Wait for UI
+        if not (Toggles.ESPTeamCheck and Options.ESPColor) then return end
+        
+        if not Player.Parent then Box:Remove(); Tracer:Remove(); Name:Remove(); ESPCon:Disconnect() return end
+        local Char = Player.Character
+        if Char and Char:FindFirstChild("HumanoidRootPart") and Char:FindFirstChild("Humanoid") and Char.Humanoid.Health > 0 then
+            local Pos, OnScreen = Camera:WorldToViewportPoint(Char.HumanoidRootPart.Position)
+            
+            local isTeammate = (Player.Team == LocalPlayer.Team)
+            local shouldShow = true
+            if Toggles.ESPTeamCheck.Value and isTeammate then
+                shouldShow = false
+            end
+
+            if OnScreen and shouldShow then
+                local Color = Options.ESPColor.Value
+                local Size = (Camera:WorldToViewportPoint(Char.HumanoidRootPart.Position - Vector3.new(0, 3, 0)).Y - Camera:WorldToViewportPoint(Char.HumanoidRootPart.Position + Vector3.new(0, 2.6, 0)).Y)
+                
+                if Toggles.ESP_Box and Toggles.ESP_Box.Value then
+                    Box.Size = Vector2.new(Size * 0.7, Size); Box.Position = Vector2.new(Pos.X - Box.Size.X / 2, Pos.Y - Box.Size.Y / 2)
+                    Box.Color, Box.Visible = Color, true
+                else Box.Visible = false end
+                
+                if Toggles.ESP_Tracer and Toggles.ESP_Tracer.Value then
+                    Tracer.From, Tracer.To = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y), Vector2.new(Pos.X, Pos.Y)
+                    Tracer.Color, Tracer.Visible = Color, true
+                else Tracer.Visible = false end
+                
+                if Toggles.ESP_Names and Toggles.ESP_Names.Value then
+                    Name.Text = Player.Name .. " [" .. math.floor(Char.Humanoid.Health) .. "]"; Name.Position = Vector2.new(Pos.X, (Pos.Y - Size / 2) - 15)
+                    Name.Color, Name.Visible = Color, true
+                else Name.Visible = false end
+            else Box.Visible, Tracer.Visible, Name.Visible = false, false, false end
+        else Box.Visible, Tracer.Visible, Name.Visible = false, false, false end
+    end)
+end
+
+-- Render Loop
+local AimbotCircle = Drawing.new("Circle")
+AimbotCircle.Thickness = 1; AimbotCircle.Color = Color3.new(1,1,1); AimbotCircle.Visible = false
+
+RunService.RenderStepped:Connect(function(deltaTime)
+    -- Safety: Wait for UI initialization
+    if not (Toggles.Aimbot and Options.AimbotFOVRadius) then return end
+    
+    local mouseLoc = UserInputService:GetMouseLocation()
+    
+    AimbotCircle.Position = mouseLoc
+    AimbotCircle.Radius = Options.AimbotFOVRadius.Value
+    AimbotCircle.Visible = Toggles.AimbotUseFOV.Value
+
+    -- World Mods
+    if Toggles.NoFog and Toggles.NoFog.Value then Lighting.FogStart, Lighting.FogEnd = 100000, 100000 end
+    if Toggles.Fullbright and Toggles.Fullbright.Value then
+        Lighting.Ambient, Lighting.OutdoorAmbient = Options.FullbrightColor.Value, Options.FullbrightColor.Value
+    end
+
+    -- Speed Hack
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") then
+        if Toggles.SpeedEnabled and Toggles.SpeedEnabled.Value and char.Humanoid.MoveDirection.Magnitude > 0 then
+            char.HumanoidRootPart.CFrame += (char.Humanoid.MoveDirection * (16 * deltaTime))
+        end
+    end
+
+    -- Trigger Bot
+    if Toggles.TriggerBot and Toggles.TriggerBot.Value then
+        local target = Mouse.Target
+        if target and target.Parent and target.Parent:FindFirstChild("Humanoid") then
+            local targetPlayer = Players:GetPlayerFromCharacter(target.Parent)
+            if targetPlayer and targetPlayer ~= LocalPlayer and target.Parent.Humanoid.Health > 0 then
+                if not (Toggles.TriggerTeamCheck and Toggles.TriggerTeamCheck.Value and targetPlayer.Team == LocalPlayer.Team) then
+                    task.wait(Options.TriggerDelay.Value / 1000)
+                    mouse1click()
+                end
+            end
+        end
+    end
+
+    -- Aimbot Camera
+    if Toggles.Aimbot and Toggles.Aimbot.Value and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+        local Target = GetClosestPlayer()
+        if Target then
+            local targetPos = Target.Position
+            if Toggles.AimbotPrediction and Toggles.AimbotPrediction.Value and Target.Parent:FindFirstChild("HumanoidRootPart") then
+                targetPos = targetPos + (Target.Parent.HumanoidRootPart.Velocity * Options.PredictionAmount.Value)
+            end
+            local lookAtCFrame = CFrame.lookAt(Camera.CFrame.Position, targetPos)
+            Camera.CFrame = Camera.CFrame:Lerp(lookAtCFrame, 1 / (Options.AimbotSmoothness.Value + 1))
+        end
+    end
+end)
+
+-- [[ 4. INITIALIZE ]] --
+
+Toggles.NoFog:OnChanged(function(v) if not v then Lighting.FogStart, Lighting.FogEnd = OriginalFogStart, OriginalFogEnd end end)
+Toggles.Fullbright:OnChanged(function(v) if not v then Lighting.Ambient, Lighting.OutdoorAmbient = OriginalAmbient, OriginalOutdoorAmbient end end)
+
+for _, v in pairs(Players:GetPlayers()) do if v ~= LocalPlayer then CreateESP(v) end end
+Players.PlayerAdded:Connect(CreateESP)
+
+ThemeManager:SetLibrary(Library); SaveManager:SetLibrary(Library)
+SaveManager:BuildConfigSection(Tabs['UI Settings']); ThemeManager:ApplyToTab(Tabs['UI Settings'])
+
+Tabs['UI Settings']:AddLeftGroupbox('Menu'):AddButton('Unload', function()
+    AimbotCircle:Remove(); Library:Unload()
+end)
 else
     warn("We do not support this game. In case you're in Dandy's World lobby, please join a match so it works.")
 end
