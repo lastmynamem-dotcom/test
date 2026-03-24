@@ -4972,7 +4972,7 @@ SaveManager:BuildConfigSection(Tabs["UI Settings"])
 ThemeManager:ApplyToTab(Tabs["UI Settings"])
 SaveManager:LoadAutoloadConfig()
 elseif currentID == 286090429 then
-    local repo = 'https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/'
+local repo = 'https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/'
 local Library = loadstring(game:HttpGet(repo .. 'Library.lua'))()
 local ThemeManager = loadstring(game:HttpGet(repo .. 'addons/ThemeManager.lua'))()
 local SaveManager = loadstring(game:HttpGet(repo .. 'addons/SaveManager.lua'))()
@@ -4983,6 +4983,11 @@ local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
+
+-- [ SETTINGS & DEBOUNCE ] --
+local RespawnIgnoreList = {}
+local TargetParts = {"HeadHB", "RightLeg", "LeftLeg"}
+local WeaponBackups = {}
 
 local Window = Library:CreateWindow({
     Title = "Synth Hub",
@@ -4999,203 +5004,260 @@ local Tabs = {
     ['UI Settings'] = Window:AddTab('UI Settings'),
 }
 
-local Connections = {}
-
--- [ AIMING GROUP ] --
+-- [ AIMBOT GROUP ] --
 local AimBox = Tabs.Main:AddLeftGroupbox('Aimbot')
 AimBox:AddToggle('Aimbot', { Text = 'Aimbot', Default = false })
 AimBox:AddToggle('AimbotTeamCheck', { Text = 'Team Check', Default = true })
-AimBox:AddDropdown('AimbotPart', { Values = { 'Head', 'Torso' }, Default = 1, Text = 'Target Part' })
+AimBox:AddToggle('AimbotWallCheck', { Text = 'Wall Check', Default = false }) -- New Wallcheck
 AimBox:AddSlider('AimbotSmoothness', { Text = 'Smoothness', Default = 2, Min = 0, Max = 20, Rounding = 1, Compact = true })
-
--- [ SILENT AIM / HITBOX GROUP ] --
-local SilentBox = Tabs.Main:AddRightGroupbox('Silent Aim')
-SilentBox:AddToggle('SilentAim', { Text = 'Silent Aim', Default = false })
-SilentBox:AddToggle('SilentTeamCheck', { Text = 'Team Check', Default = true })
-SilentBox:AddDropdown('SilentPart', { Values = { 'Head', 'Torso' }, Default = 1, Text = 'Target Part' })
-SilentBox:AddSlider('HitboxSize', { Text = 'Hitbox Size', Default = 13, Min = 2, Max = 25, Rounding = 0, Compact = true })
+AimBox:AddDivider()
+AimBox:AddToggle('AimbotUseFOV', { Text = 'Show FOV', Default = false })
+AimBox:AddSlider('AimbotFOVRadius', { Text = 'Radius', Default = 100, Min = 10, Max = 800, Rounding = 0, Compact = true })
 
 -- [ GUN MODS GROUP ] --
 local GunBox = Tabs.Main:AddLeftGroupbox('Gun Mods')
 GunBox:AddToggle('NoRecoil', { Text = 'No Recoil', Default = false })
 GunBox:AddToggle('RapidFire', { Text = 'Rapid Fire', Default = false })
 
--- [ PLAYER TAB ] --
+-- [ SILENT AIM / HITBOX GROUP ] --
+local SilentBox = Tabs.Main:AddRightGroupbox('Silent Aim')
+SilentBox:AddToggle('SilentAim', { Text = 'Silent Aim', Default = false })
+SilentBox:AddToggle('SilentTeamCheck', { Text = 'Team Check', Default = true })
+SilentBox:AddSlider('HitboxSize', { Text = 'Hitbox Size', Default = 13, Min = 2, Max = 25, Rounding = 0, Compact = true })
+SilentBox:AddDivider()
+SilentBox:AddToggle('SilentUseFOV', { Text = 'Show FOV', Default = false })
+SilentBox:AddSlider('SilentFOVRadius', { Text = 'Radius', Default = 100, Min = 10, Max = 800, Rounding = 0, Compact = true })
+
+-- [ VISUALS TAB - LEFT (ESP) ] --
+local ESPBox = Tabs.Visuals:AddLeftGroupbox('ESP Settings')
+ESPBox:AddToggle('ESP_Box', { Text = 'Boxes', Default = false })
+ESPBox:AddToggle('ESP_Tracer', { Text = 'Tracers', Default = false })
+ESPBox:AddToggle('ESP_Names', { Text = 'Names', Default = false })
+ESPBox:AddToggle('ESPTeamCheck', { Text = 'Team Check', Default = true })
+ESPBox:AddLabel('Color'):AddColorPicker('ESPColor', { Default = Color3.fromRGB(255, 255, 255) })
+
+-- [ VISUALS TAB - RIGHT (PLAYER CAMERA) ] --
+local VisPlayerBox = Tabs.Visuals:AddRightGroupbox('Player')
+VisPlayerBox:AddSlider('CameraFOV', { Text = 'Field Of View', Default = 70, Min = 30, Max = 120, Rounding = 0, Compact = true })
+
+Options.CameraFOV:OnChanged(function()
+    local val = Options.CameraFOV.Value
+    local sFolder = LocalPlayer:FindFirstChild("Settings")
+    if sFolder and sFolder:FindFirstChild("FOV") then
+        sFolder.FOV.Value = val
+    end
+    Camera.FieldOfView = val
+end)
+
+-- [ PLAYER TAB - MOVEMENT ] --
 local MoveBox = Tabs.Player:AddLeftGroupbox('Movement')
-
 MoveBox:AddToggle('SpeedEnabled', { Text = 'Speed Hack', Default = false })
-local SpeedDepBox = MoveBox:AddDependencyBox()
-SpeedDepBox:AddSlider('SpeedValue', { Text = 'Value', Default = 16, Min = 16, Max = 100, Rounding = 0, Compact = true })
-SpeedDepBox:SetupDependencies({{ Toggles.SpeedEnabled, true }})
-
+MoveBox:AddSlider('SpeedValue', { Text = 'Value', Default = 16, Min = 16, Max = 100, Rounding = 0, Compact = true })
 MoveBox:AddToggle('FlyEnabled', { Text = 'Fly', Default = false })
-local FlyDepBox = MoveBox:AddDependencyBox()
-FlyDepBox:AddSlider('FlySpeed', { Text = 'Fly Speed', Default = 50, Min = 10, Max = 200, Rounding = 0, Compact = true })
-FlyDepBox:SetupDependencies({{ Toggles.FlyEnabled, true }})
+MoveBox:AddSlider('FlySpeed', { Text = 'Fly Speed', Default = 50, Min = 10, Max = 200, Rounding = 0, Compact = true })
 
--- [ NEW FLIGHT & SPEED ENGINE ] --
-Connections.Movement = RunService.RenderStepped:Connect(function(deltaTime)
-    local char = LocalPlayer.Character
-    local hum = char and char:FindFirstChild("Humanoid")
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+-- [ CORE LOGIC FUNCTIONS ] --
 
-    if hum and hrp and hum.Health > 0 then
-        -- CFrame Flight Logic
-        if Toggles.FlyEnabled.Value then
-            hum.PlatformStand = true
-            hrp.Velocity = Vector3.new(0, 0, 0) -- Kill falling velocity
-            
-            local moveDir = Vector3.new(0,0,0)
-            if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir += Camera.CFrame.LookVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir -= Camera.CFrame.LookVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir += Camera.CFrame.RightVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir -= Camera.CFrame.RightVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.new(0, 1, 0) end
-            if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir -= Vector3.new(0, 1, 0) end
-            
-            if moveDir.Magnitude > 0 then
-                hrp.CFrame = hrp.CFrame + (moveDir.Unit * Options.FlySpeed.Value * deltaTime)
-            end
-        else
-            hum.PlatformStand = false
-            -- Speed Hack Logic
-            if Toggles.SpeedEnabled.Value and hum.MoveDirection.Magnitude > 0 then
-                hrp.CFrame = hrp.CFrame + (hum.MoveDirection * (Options.SpeedValue.Value * deltaTime))
+local function IsVisible(part, character)
+    local ignore = {LocalPlayer.Character, character, Camera}
+    local rays = Camera:GetPartsObscuringTarget({part.Position}, ignore)
+    return #rays == 0
+end
+
+local function ResetHitboxes(character)
+    for _, partName in pairs(TargetParts) do
+        local p = character:FindFirstChild(partName)
+        if p and p:IsA("BasePart") then
+            local origSize = p:GetAttribute("OrigSize")
+            if origSize then
+                p.Size = origSize
+                p.Transparency = p:GetAttribute("OrigTrans") or 0
+                p:SetAttribute("OrigSize", nil)
             end
         end
     end
-end)
+end
 
--- [ VISUALS ] --
-local VisualBox = Tabs.Visuals:AddLeftGroupbox('ESP')
-VisualBox:AddToggle('ESP_Box', { Text = '2D Boxes', Default = false })
-VisualBox:AddToggle('ESP_Tracer', { Text = 'Tracers', Default = false })
-VisualBox:AddLabel('Color'):AddColorPicker('ESPColor', { Default = Color3.fromRGB(255, 255, 255) })
+local function ExpandHitboxes(character, sizeVal)
+    for _, partName in pairs(TargetParts) do
+        local p = character:FindFirstChild(partName)
+        if p and p:IsA("BasePart") then
+            if not p:GetAttribute("OrigSize") then
+                p:SetAttribute("OrigSize", p.Size)
+                p:SetAttribute("OrigTrans", p.Transparency)
+            end
+            p.Size = Vector3.new(sizeVal, sizeVal, sizeVal)
+            p.Transparency = 10; p.CanCollide = false; p.Massless = true
+        end
+    end
+end
 
--- [ SILENT AIM / HITBOX ENGINE ] --
-Connections.Hitbox = RunService.RenderStepped:Connect(function()
-    if Toggles.SilentAim.Value then
-        local sizeVal = Options.HitboxSize.Value
-        local partToExpand = (Options.SilentPart.Value == "Head" and "HeadHB") or "HumanoidRootPart" 
-        for _, v in pairs(Players:GetPlayers()) do
-            if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("Humanoid") and v.Character.Humanoid.Health > 0 then
-                if Toggles.SilentTeamCheck.Value and v.Team == LocalPlayer.Team then continue end
-                local p = v.Character:FindFirstChild(partToExpand)
-                if p then
-                    p.Size, p.CanCollide, p.Massless, p.Transparency = Vector3.new(sizeVal, sizeVal, sizeVal), false, true, 0.7
+-- [ ESP ENGINE ] --
+local function CreateESP(Player)
+    local Box, Tracer, Name = Drawing.new("Square"), Drawing.new("Line"), Drawing.new("Text")
+    Box.Thickness, Tracer.Thickness = 1, 1
+    Box.Filled = false
+    Name.Size, Name.Center, Name.Outline = 14, true, true
+    
+    local ESPCon
+    ESPCon = RunService.RenderStepped:Connect(function()
+        if not Player.Parent then Box:Remove() Tracer:Remove() Name:Remove() ESPCon:Disconnect() return end
+        
+        local Char = Player.Character
+        if Char and Char:FindFirstChild("HumanoidRootPart") and Char:FindFirstChild("Humanoid") and Char.Humanoid.Health > 0 then
+            local Pos, OnScreen = Camera:WorldToViewportPoint(Char.HumanoidRootPart.Position)
+            
+            if OnScreen and not (Toggles.ESPTeamCheck.Value and Player.Team == LocalPlayer.Team) then
+                local Color = Options.ESPColor.Value
+                
+                if Toggles.ESP_Box.Value then
+                    local Size = (Camera:WorldToViewportPoint(Char.HumanoidRootPart.Position - Vector3.new(0, 3, 0)).Y - Camera:WorldToViewportPoint(Char.HumanoidRootPart.Position + Vector3.new(0, 2.6, 0)).Y)
+                    Box.Size = Vector2.new(Size * 0.7, Size)
+                    Box.Position = Vector2.new(Pos.X - Box.Size.X / 2, Pos.Y - Box.Size.Y / 2)
+                    Box.Color, Box.Visible = Color, true
+                else Box.Visible = false end
+                
+                if Toggles.ESP_Tracer.Value then
+                    Tracer.From, Tracer.To = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y), Vector2.new(Pos.X, Pos.Y)
+                    Tracer.Color, Tracer.Visible = Color, true
+                else Tracer.Visible = false end
+
+                if Toggles.ESP_Names.Value then
+                    Name.Text = Player.Name .. " [" .. math.floor(Char.Humanoid.Health) .. "]"
+                    Name.Position = Vector2.new(Pos.X, (Pos.Y - (Box.Size.Y / 2)) - 15)
+                    Name.Color, Name.Visible = Color, true
+                else Name.Visible = false end
+            else Box.Visible, Tracer.Visible, Name.Visible = false, false, false end
+        else Box.Visible, Tracer.Visible, Name.Visible = false, false, false end
+    end)
+end
+
+-- [ FOV DRAWINGS ] --
+local AimbotCircle = Drawing.new("Circle"); AimbotCircle.Thickness = 1; AimbotCircle.Color = Color3.new(1,1,1); AimbotCircle.Visible = false
+local SilentCircle = Drawing.new("Circle"); SilentCircle.Thickness = 1; SilentCircle.Color = Color3.new(1,1,1); SilentCircle.Visible = false
+
+-- [ MAIN RENDER LOOP ] --
+RunService.RenderStepped:Connect(function(deltaTime)
+    local mousePos = UserInputService:GetMouseLocation()
+    AimbotCircle.Position = mousePos; AimbotCircle.Radius = Options.AimbotFOVRadius.Value; AimbotCircle.Visible = Toggles.AimbotUseFOV.Value
+    SilentCircle.Position = mousePos; SilentCircle.Radius = Options.SilentFOVRadius.Value; SilentCircle.Visible = Toggles.SilentUseFOV.Value
+
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") then
+        local hrp, hum = char.HumanoidRootPart, char.Humanoid
+        if hum.Health > 0 then
+            if Toggles.FlyEnabled.Value then
+                hum.PlatformStand = true; hrp.Velocity = Vector3.new(0,0,0)
+                local moveDir = Vector3.new(0,0,0)
+                if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir += Camera.CFrame.LookVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir -= Camera.CFrame.LookVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir += Camera.CFrame.RightVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir -= Camera.CFrame.RightVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.new(0, 1, 0) end
+                if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir -= Vector3.new(0, 1, 0) end
+                if moveDir.Magnitude > 0 then hrp.CFrame += (moveDir.Unit * Options.FlySpeed.Value * deltaTime) end
+            else
+                hum.PlatformStand = false
+                if Toggles.SpeedEnabled.Value and hum.MoveDirection.Magnitude > 0 then
+                    hrp.CFrame += (hum.MoveDirection * (Options.SpeedValue.Value * deltaTime))
                 end
             end
+        end
+    end
+
+    for _, v in pairs(Players:GetPlayers()) do
+        if v == LocalPlayer then continue end
+        if v.Character and v.Character:FindFirstChild("Humanoid") and v.Character:FindFirstChild("HumanoidRootPart") then
+            if Toggles.SilentAim.Value and v.Character.Humanoid.Health > 0 and not (Toggles.SilentTeamCheck.Value and v.Team == LocalPlayer.Team) then
+                local inFOV = true
+                if Toggles.SilentUseFOV.Value then
+                    local pos, onScreen = Camera:WorldToViewportPoint(v.Character.HumanoidRootPart.Position)
+                    if not onScreen or (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude > Options.SilentFOVRadius.Value then inFOV = false end
+                end
+                if inFOV then ExpandHitboxes(v.Character, Options.HitboxSize.Value) else ResetHitboxes(v.Character) end
+            else ResetHitboxes(v.Character) end
         end
     end
 end)
 
 -- [ AIMBOT ENGINE ] --
-local function GetClosestPlayer()
-    local Target, Dist = nil, math.huge
-    local aimPartName = (Options.AimbotPart.Value == "Head" and "Head") or "HumanoidRootPart"
-    for _, v in pairs(Players:GetPlayers()) do
-        if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild(aimPartName) and v.Character:FindFirstChild("Humanoid") and v.Character.Humanoid.Health > 0 then
-            if Toggles.AimbotTeamCheck.Value and v.Team == LocalPlayer.Team then continue end
-            local ScreenPos, OnScreen = Camera:WorldToViewportPoint(v.Character[aimPartName].Position)
-            if OnScreen then
-                local Mag = (Vector2.new(ScreenPos.X, ScreenPos.Y) - UserInputService:GetMouseLocation()).Magnitude
-                if Mag < Dist then Target, Dist = v.Character[aimPartName], Mag end
+RunService.RenderStepped:Connect(function()
+    if Toggles.Aimbot.Value and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+        local Target, Closest = nil, math.huge
+        local mouseLoc = UserInputService:GetMouseLocation()
+        
+        for _, v in pairs(Players:GetPlayers()) do
+            if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("Humanoid") and v.Character.Humanoid.Health > 0 then
+                if Toggles.AimbotTeamCheck.Value and v.Team == LocalPlayer.Team then continue end
+                
+                local part = v.Character:FindFirstChild("HeadHB") or v.Character:FindFirstChild("Head")
+                if part then
+                    local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                    if onScreen then
+                        local mag = (Vector2.new(pos.X, pos.Y) - mouseLoc).Magnitude
+                        
+                        -- Pass Check Logic
+                        local passFOV = not Toggles.AimbotUseFOV.Value or (mag <= Options.AimbotFOVRadius.Value)
+                        local passWall = not Toggles.AimbotWallCheck.Value or IsVisible(part, v.Character)
+
+                        if passFOV and passWall and mag < Closest then
+                            Closest = mag
+                            Target = part
+                        end
+                    end
+                end
             end
         end
-    end
-    return Target
-end
-
-Connections.Aimbot = RunService.RenderStepped:Connect(function()
-    if Toggles.Aimbot.Value and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-        local T = GetClosestPlayer()
-        if T then
-            local Smooth = Options.AimbotSmoothness.Value
-            if Smooth == 0 then
-                Camera.CFrame = CFrame.new(Camera.CFrame.Position, T.Position)
-            else
-                Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, T.Position), 1 / (Smooth + 1))
-            end
+        
+        if Target then
+            local smooth = Options.AimbotSmoothness.Value
+            local lookAt = CFrame.new(Camera.CFrame.Position, Target.Position)
+            Camera.CFrame = Camera.CFrame:Lerp(lookAt, 1 / (smooth + 1))
         end
     end
 end)
 
--- [ GUN MODS ENGINE (Rapid Fire & No Recoil) ] --
+-- [ GUN MODS ENGINE WITH RESTORE ] --
 task.spawn(function()
-    while task.wait(5) do
-        -- Only run the loop if at least one of the mods is enabled
-        if Toggles.RapidFire.Value or Toggles.NoRecoil.Value then
-            local weaponsFolder = ReplicatedStorage:FindFirstChild("Weapons")
-            
-            if weaponsFolder then
-                for _, v in pairs(weaponsFolder:GetDescendants()) do
-                    
-                    -- Rapid Fire Logic
+    while true do task.wait(0.5)
+        local wf = ReplicatedStorage:FindFirstChild("Weapons")
+        if wf then
+            for _, v in pairs(wf:GetDescendants()) do
+                -- Rapid Fire Logic
+                if v.Name == "Auto" or v.Name == "FireRate" then
                     if Toggles.RapidFire.Value then
-                        if v.Name == "Auto" then
-                            v.Value = true
-                        elseif v.Name == "FireRate" then
-                            v.Value = 0.02
-                        end
+                        if WeaponBackups[v] == nil then WeaponBackups[v] = v.Value end
+                        if v.Name == "Auto" then v.Value = true else v.Value = 0.02 end
+                    elseif WeaponBackups[v] ~= nil then
+                        v.Value = WeaponBackups[v]
                     end
-                    
-                    -- No Recoil Logic
+                end
+                -- No Recoil Logic
+                if v.Name == "RecoilControl" or v.Name == "MaxSpread" then
                     if Toggles.NoRecoil.Value then
-                        if v.Name == "RecoilControl" then
-                            v.Value = 0
-                        elseif v.Name == "MaxSpread" then
-                            v.Value = 0
-                        end
+                        if WeaponBackups[v] == nil then WeaponBackups[v] = v.Value end
+                        v.Value = 0
+                    elseif WeaponBackups[v] ~= nil then
+                        v.Value = WeaponBackups[v]
                     end
-                    
                 end
             end
         end
     end
 end)
 
--- [ ESP ENGINE ] --
-local function CreateESP(Player)
-    local Box, Tracer = Drawing.new("Square"), Drawing.new("Line")
-    Box.Thickness, Tracer.Thickness = 1, 1
-    local ESPCon
-    ESPCon = RunService.RenderStepped:Connect(function()
-        if not Player.Parent then Box:Remove() Tracer:Remove() ESPCon:Disconnect() return end
-        if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") and Player.Character:FindFirstChild("Humanoid") and Player.Character.Humanoid.Health > 0 then
-            local Pos, OnScreen = Camera:WorldToViewportPoint(Player.Character.HumanoidRootPart.Position)
-            if OnScreen and not (Toggles.AimbotTeamCheck.Value and Player.Team == LocalPlayer.Team) then
-                if Toggles.ESP_Box.Value then
-                    local Size = (Camera:WorldToViewportPoint(Player.Character.HumanoidRootPart.Position - Vector3.new(0, 3, 0)).Y - Camera:WorldToViewportPoint(Player.Character.HumanoidRootPart.Position + Vector3.new(0, 2.6, 0)).Y)
-                    Box.Size = Vector2.new(Size * 0.7, Size)
-                    Box.Position = Vector2.new(Pos.X - Box.Size.X / 2, Pos.Y - Box.Size.Y / 2)
-                    Box.Color, Box.Visible = Options.ESPColor.Value, true
-                else Box.Visible = false end
-                if Toggles.ESP_Tracer.Value then
-                    Tracer.From, Tracer.To = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y), Vector2.new(Pos.X, Pos.Y)
-                    Tracer.Color, Tracer.Visible = Options.ESPColor.Value, true
-                else Tracer.Visible = false end
-            else Box.Visible, Tracer.Visible = false, false end
-        else Box.Visible, Tracer.Visible = false, false end
-    end)
-end
-
+-- [ CONNECTIONS ] --
 for _, v in pairs(Players:GetPlayers()) do if v ~= LocalPlayer then CreateESP(v) end end
 Players.PlayerAdded:Connect(CreateESP)
 
--- [ CONFIG & UNLOAD ] --
-ThemeManager:SetLibrary(Library)
-SaveManager:SetLibrary(Library)
-ThemeManager:SetFolder('SynthHub')
-SaveManager:SetFolder('SynthHub/Arsenal')
-SaveManager:BuildConfigSection(Tabs['UI Settings'])
+ThemeManager:SetLibrary(Library); SaveManager:SetLibrary(Library)
+ThemeManager:SetFolder('SynthHub'); SaveManager:SetFolder('SynthHub/Arsenal')
+SaveManager:BuildConfigSection(Tabs['UI Settings']); ThemeManager:ApplyToTab(Tabs['UI Settings'])
 
-local SettingsBox = Tabs['UI Settings']:AddLeftGroupbox('Menu')
-SettingsBox:AddButton('Unload', function()
-    for _, v in pairs(Connections) do v:Disconnect() end
+Tabs['UI Settings']:AddLeftGroupbox('Menu'):AddButton('Unload', function()
+    AimbotCircle:Remove(); SilentCircle:Remove()
     Library:Unload()
 end)
-
-ThemeManager:ApplyToTab(Tabs['UI Settings'])
 else
     warn("We do not support this game. In case you're in Dandy's World lobby, please join a match so it works.")
 end
