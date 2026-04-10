@@ -1,5 +1,12 @@
 repeat task.wait() until game:IsLoaded()
 
+-- Executor check to ensure compatibilit
+local executor = (identifyexecutor and identifyexecutor()) or "Unknown"
+if string.find(executor, "Xeno") or string.find(executor, "Solara") then
+    LocalPlayer:Kick("get a better executor (such as Velocity)")
+    return
+end
+
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
