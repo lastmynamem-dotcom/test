@@ -5517,6 +5517,693 @@ SaveManager:BuildConfigSection(Tabs['UI Settings']); ThemeManager:ApplyToTab(Tab
 Tabs['UI Settings']:AddLeftGroupbox('Menu'):AddButton('Unload', function()
     AimbotCircle:Remove(); Library:Unload()
 end)
+elseif currentID == 4623386862 or 5661005779 then
+-- // VARIABLES \\ --
+local lp = game.Players.LocalPlayer
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+
+local origLighting = {
+    Ambient = Lighting.Ambient,
+    OutdoorAmbient = Lighting.OutdoorAmbient,
+    ClockTime = Lighting.ClockTime,
+    FogEnd = Lighting.FogEnd
+}
+local atmos = Lighting:FindFirstChildOfClass("Atmosphere")
+local origDensity = atmos and atmos.Density or 0.3
+
+-- // LIBRARY & SCRIPT \\ --
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+
+local Options = Library.Options
+local Toggles = Library.Toggles
+
+Library.ForceCheckbox = false 
+Library.ShowToggleFrameInKeybinds = true 
+
+local Window = Library:CreateWindow({
+    Title = "Synth Hub",
+    Footer = "Version: 1",
+    NotifySide = "Right",
+    ShowCustomCursor = true,
+})
+
+local Tabs = {
+    Main = Window:AddTab("Main", "boxes"),
+    Player = Window:AddTab("Player", "user"),
+    Visuals = Window:AddTab("Visuals", "eye"),
+    ["UI Settings"] = Window:AddTab("UI Settings", "settings"),
+}
+
+local LeftGroupBox = Tabs.Main:AddLeftGroupbox("Automation")
+local LeftGroupBox2 = Tabs.Main:AddLeftGroupbox("Items")
+local RightGroupBox = Tabs.Main:AddRightGroupbox("Godmode")
+
+local PlayerGroupBox = Tabs.Player:AddLeftGroupbox("Local Player")
+
+local LeftVisuals = Tabs.Visuals:AddLeftGroupbox("ESP")
+local RightVisuals = Tabs.Visuals:AddRightGroupbox("Environment")
+
+local function updateHitboxes(target, canTouchValue)
+    if target:IsA("BasePart") and target.CanTouch ~= canTouchValue then 
+        target.CanTouch = canTouchValue 
+    end
+    for _, object in ipairs(target:GetDescendants()) do
+        if object:IsA("BasePart") and object.CanTouch ~= canTouchValue then 
+            object.CanTouch = canTouchValue 
+        end
+    end
+end
+
+-- // TAB: MAIN \\ --
+LeftGroupBox:AddToggle("AutoKill", {
+    Text = "Auto Kill",
+    Default = false,
+    Tooltip = "Automatically kill players if you're the piggy or traitor."
+})
+
+LeftGroupBox2:AddButton({
+    Text = "Item Hub (Book 1 & 2)",
+    Func = function()
+        -- // UI ROOT
+        local sg = Instance.new("ScreenGui", game.CoreGui)
+        sg.Name = "ItemHub"
+
+        local mainFrame = Instance.new("Frame", sg)
+        mainFrame.Size = UDim2.new(0, 350, 0, 450)
+        mainFrame.Position = UDim2.new(0.5, -175, 0.5, -225)
+        mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+        mainFrame.BorderSizePixel = 1
+        mainFrame.BorderColor3 = Color3.fromRGB(45, 45, 45)
+        mainFrame.Active = true
+
+        -- // HEADER
+        local header = Instance.new("TextLabel", mainFrame)
+        header.Size = UDim2.new(1, 0, 0, 35)
+        header.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+        header.BorderSizePixel = 1
+        header.BorderColor3 = Color3.fromRGB(45, 45, 45)
+        header.Text = "  Item Pickup"
+        header.TextColor3 = Color3.fromRGB(255, 255, 255)
+        header.TextXAlignment = Enum.TextXAlignment.Left
+        header.Font = Enum.Font.SourceSansBold
+        header.TextSize = 18
+
+        -- // CLOSE BUTTON
+        local closeBtn = Instance.new("TextButton", header)
+        closeBtn.Size = UDim2.new(0, 35, 1, 0)
+        closeBtn.Position = UDim2.new(1, -35, 0, 0)
+        closeBtn.BackgroundTransparency = 1
+        closeBtn.Text = "X"
+        closeBtn.TextColor3 = Color3.fromRGB(220, 50, 50)
+        closeBtn.TextSize = 18
+        closeBtn.Font = Enum.Font.SourceSansBold
+        closeBtn.MouseButton1Click:Connect(function()
+            sg:Destroy()
+        end)
+
+        -- // SCROLLING AREA
+        local scroll = Instance.new("ScrollingFrame", mainFrame)
+        scroll.Size = UDim2.new(1, -10, 1, -45)
+        scroll.Position = UDim2.new(0, 5, 0, 40)
+        scroll.BackgroundTransparency = 1
+        scroll.BorderSizePixel = 0
+        scroll.ScrollBarThickness = 4
+        scroll.ScrollBarImageColor3 = Color3.fromRGB(60, 60, 60)
+        scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+
+        local grid = Instance.new("UIGridLayout")
+        grid.CellSize = UDim2.new(0, 105, 0, 105)
+        grid.CellPadding = UDim2.new(0, 5, 0, 5) 
+        grid.SortOrder = Enum.SortOrder.LayoutOrder
+        grid.Parent = scroll
+
+        -- // ITEM PREVIEW
+        local function createItemPreview(item, parentFrame)
+            if not item then return end
+            local success, itemPos = pcall(function() return item:GetPivot().Position end)
+            if not success or not itemPos then return end
+            
+            local viewport = Instance.new("ViewportFrame", parentFrame)
+            viewport.Size = UDim2.new(1, 0, 1, 0)
+            viewport.BackgroundTransparency = 1
+            viewport.BorderSizePixel = 0
+            
+            local ghostCopy
+            pcall(function() ghostCopy = item:Clone() end)
+            if not ghostCopy then return end
+
+            for _, child in ipairs(ghostCopy:GetDescendants()) do
+                if child:IsA("LuaSourceContainer") or child:IsA("TouchTransmitter") or child:IsA("ClickDetector") then
+                    child:Destroy()
+                end
+            end
+
+            ghostCopy.Parent = viewport
+            local camera = Instance.new("Camera", viewport)
+            viewport.CurrentCamera = camera
+            camera.CFrame = CFrame.new(itemPos + Vector3.new(0, 2, 4), itemPos)
+
+            task.spawn(function()
+                local rot = 0
+                while ghostCopy.Parent do
+                    rot = rot + 1.5
+                    if ghostCopy:IsA("Model") then
+                        ghostCopy:PivotTo(CFrame.new(itemPos) * CFrame.Angles(0, math.rad(rot), 0))
+                    else
+                        ghostCopy.CFrame = CFrame.new(itemPos) * CFrame.Angles(0, math.rad(rot), 0)
+                    end
+                    task.wait()
+                end
+            end)
+            return viewport
+        end
+
+        local function safePickup(item)
+            local lp = game.Players.LocalPlayer
+            local char = lp.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            local cd = item:FindFirstChildOfClass("ClickDetector")
+            
+            if root and hum and cd then
+                local oldPos = root.CFrame
+                local targetCFrame = item:IsA("Model") and item:GetPivot() or item.CFrame
+                
+                root.CFrame = targetCFrame * CFrame.new(0, 1, 0) 
+                
+                local startTime = tick()
+                while tick() - startTime < 0.25 do
+                    root.AssemblyLinearVelocity = Vector3.new(0,0,0)
+                    root.AssemblyAngularVelocity = Vector3.new(0,0,0)
+                    game:GetService("RunService").Heartbeat:Wait()
+                end
+                
+                local oldDist = cd.MaxActivationDistance
+                cd.MaxActivationDistance = 9e9
+                fireclickdetector(cd)
+                
+                task.wait(0.1)
+                
+                cd.MaxActivationDistance = oldDist
+                root.CFrame = oldPos
+                
+                root.AssemblyLinearVelocity = Vector3.new(0,0,0)
+                hum:ChangeState(Enum.HumanoidStateType.Running)
+            end
+        end
+
+        -- // SCANNER LOOP
+        local trackedItems = {}
+        task.spawn(function()
+            while sg.Parent do
+                local currentItems = {}
+                for _, obj in ipairs(workspace:GetDescendants()) do
+                    if (obj.Name == "ItemPickupScript" or obj.Name == "NewItemPickupScript") and obj.Parent and obj.Parent:FindFirstChildOfClass("ClickDetector") then
+                        local item = obj.Parent
+                        currentItems[item] = true
+                        
+                        if not trackedItems[item] then
+                            local btn = Instance.new("TextButton", scroll)
+                            btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+                            btn.Text = ""
+                            btn.BorderSizePixel = 1
+                            btn.BorderColor3 = Color3.fromRGB(50, 50, 50)
+                            
+                            if createItemPreview(item, btn) then
+                                trackedItems[item] = btn
+                                btn.MouseButton1Click:Connect(function()
+                                    safePickup(item)
+                                end)
+                            else
+                                btn:Destroy()
+                            end
+                        end
+                    end
+                end
+
+                for item, btn in pairs(trackedItems) do
+                    if not currentItems[item] or not item.Parent then
+                        btn:Destroy()
+                        trackedItems[item] = nil
+                    end
+                end
+                task.wait(1)
+            end
+        end)
+
+        -- // DRAGGING
+        local UIS = game:GetService("UserInputService")
+        local dragging, dragInput, dragStart, startPos
+        header.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = true
+                dragStart = input.Position
+                startPos = mainFrame.Position
+                input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then dragging = false end
+                end)
+            end
+        end)
+        UIS.InputChanged:Connect(function(input)
+            if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                local delta = input.Position - dragStart
+                mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            end
+        end)
+    end
+})
+
+RightGroupBox:AddToggle("Godmode", { Text = "Godmode (bots only)", Default = false })
+RightGroupBox:AddToggle("GodmodeDP", { Text = "Godmode (deadly parts)", Default = false })
+RightGroupBox:AddDivider()
+RightGroupBox:AddLabel("Warning", {Text = "Disable 'Godmode (deadly parts)'\nto escape."})
+
+-- // TAB: PLAYER \\ --
+PlayerGroupBox:AddToggle("Speedhack", { 
+    Text = "Speedhack", 
+    Default = false,
+    Callback = function(Value)
+        if not Value then
+            local hum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.WalkSpeed = 16 end
+        end
+    end
+})
+PlayerGroupBox:AddSlider("WalkSpeed", {
+    Text = "WalkSpeed", Default = 16, Min = 0, Max = 300, Rounding = 0, Compact = true
+})
+
+PlayerGroupBox:AddToggle("JumpHack", { 
+    Text = "Jump Power", 
+    Default = false,
+    Callback = function(Value)
+        if not Value then
+            local hum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.JumpPower = 50 end
+        end
+    end
+})
+PlayerGroupBox:AddSlider("JumpPower", {
+    Text = "JumpPower", Default = 50, Min = 0, Max = 300, Rounding = 0, Compact = true
+})
+
+PlayerGroupBox:AddDivider()
+
+PlayerGroupBox:AddToggle("Noclip", { Text = "Noclip", Default = false })
+PlayerGroupBox:AddToggle("Fly", { Text = "Fly", Default = false })
+PlayerGroupBox:AddSlider("FlySpeed", {
+    Text = "Fly Speed", 
+    Default = 30, 
+    Min = 10, 
+    Max = 150, 
+    Rounding = 0, 
+    Compact = true
+})
+
+PlayerGroupBox:AddDivider()
+
+PlayerGroupBox:AddToggle("InfJump", { Text = "Infinite Jump", Default = false })
+PlayerGroupBox:AddToggle("AntiVoid", { Text = "Disable Roblox Void", Default = false })
+
+-- // IY-BASED FLIGHT LOGIC \\ --
+local flyKeyDown, flyKeyUp, mfly2
+local control = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
+local lControl = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
+local flySpeed_Multiplier = 0
+
+-- [Logic: Input Listeners for PC]
+flyKeyDown = UIS.InputBegan:Connect(function(input, processed)
+    if processed or not Toggles.Fly.Value then return end
+    local speed = 1
+    if input.KeyCode == Enum.KeyCode.W then control.F = speed
+    elseif input.KeyCode == Enum.KeyCode.S then control.B = -speed
+    elseif input.KeyCode == Enum.KeyCode.A then control.L = -speed
+    elseif input.KeyCode == Enum.KeyCode.D then control.R = speed
+    elseif input.KeyCode == Enum.KeyCode.E then control.Q = speed * 2
+    elseif input.KeyCode == Enum.KeyCode.Q then control.E = -speed * 2 end
+end)
+
+flyKeyUp = UIS.InputEnded:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.W then control.F = 0
+    elseif input.KeyCode == Enum.KeyCode.S then control.B = 0
+    elseif input.KeyCode == Enum.KeyCode.A then control.L = 0
+    elseif input.KeyCode == Enum.KeyCode.D then control.R = 0
+    elseif input.KeyCode == Enum.KeyCode.E then control.Q = 0
+    elseif input.KeyCode == Enum.KeyCode.Q then control.E = 0 end
+end)
+
+local function startFly()
+    local char = lp.Character or lp.CharacterAdded:Wait()
+    local root = char:WaitForChild("HumanoidRootPart")
+    local hum = char:WaitForChild("Humanoid")
+    local camera = workspace.CurrentCamera
+
+    -- [Logic Point 1 & 2: Physics Overrides]
+    hum.PlatformStand = true
+    local BG = Instance.new('BodyGyro', root)
+    local BV = Instance.new('BodyVelocity', root)
+    
+    BG.P = 9e4
+    BG.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+    BG.CFrame = root.CFrame
+    BV.Velocity = Vector3.new(0,0,0)
+    BV.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+
+    -- [Logic Point 4 & 5: Combined PC/Mobile Loop]
+    task.spawn(function()
+        -- Require mobile controls if on touch device
+        local controlModule
+        pcall(function()
+            controlModule = require(lp.PlayerScripts:WaitForChild("PlayerModule"):WaitForChild("ControlModule"))
+        end)
+
+        while Toggles.Fly.Value and char.Parent do
+            local sliderSpeed = Options.FlySpeed and Options.FlySpeed.Value or 50
+            
+            -- Check if keys are pressed
+            if (control.L + control.R ~= 0) or (control.F + control.B ~= 0) or (control.Q + control.E ~= 0) then
+                flySpeed_Multiplier = 50
+            else
+                flySpeed_Multiplier = 0
+            end
+
+            if flySpeed_Multiplier ~= 0 then
+                -- [Logic: The CFrame Vector Calculation]
+                BV.Velocity = ((camera.CFrame.LookVector * (control.F + control.B)) + ((camera.CFrame * CFrame.new(control.L + control.R, (control.F + control.B + control.Q + control.E) * 0.2, 0).p) - camera.CFrame.p)) * sliderSpeed
+                lControl = {F = control.F, B = control.B, L = control.L, R = control.R}
+            else
+                -- [Logic: Mobile Thumbstick Hijack]
+                local direction = controlModule and controlModule:GetMoveVector() or Vector3.new(0,0,0)
+                if direction.Magnitude > 0 then
+                    BV.Velocity = (camera.CFrame.RightVector * (direction.X * sliderSpeed)) + (camera.CFrame.LookVector * (direction.Z * -sliderSpeed))
+                else
+                    -- Deceleration / Stop
+                    BV.Velocity = Vector3.new(0, 0, 0)
+                end
+            end
+            
+            BG.CFrame = camera.CFrame
+            RunService.RenderStepped:Wait()
+        end
+
+        -- [Logic Point 6: Cleanup]
+        BG:Destroy()
+        BV:Destroy()
+        hum.PlatformStand = false
+    end)
+end
+
+Toggles.Fly:OnChanged(function()
+    if Toggles.Fly.Value then
+        startFly()
+    else
+        pcall(function() workspace.CurrentCamera.CameraType = Enum.CameraType.Custom end)
+        if lp.Character and lp.Character:FindFirstChildOfClass("Humanoid") then
+            lp.Character:FindFirstChildOfClass("Humanoid").PlatformStand = false
+        end
+    end
+end)
+
+-- Respawn persistence for Fly
+lp.CharacterAdded:Connect(function(newChar)
+    if Toggles.Fly and Toggles.Fly.Value then
+        task.wait(0.5) -- wait for character to initialize
+        startFly()
+    end
+end)
+
+-- // TAB: VISUALS \\ --
+LeftVisuals:AddToggle("PiggyESP", { Text = "Piggy ESP", Default = false })
+LeftVisuals:AddToggle("BotsESP", { Text = "Bots ESP", Default = false })
+LeftVisuals:AddToggle("GoodBotsESP", { Text = "Good Bots ESP", Default = false })
+LeftVisuals:AddToggle("PlayerESP", { Text = "Player ESP", Default = false })
+LeftVisuals:AddToggle("TraitorESP", { Text = "Traitor ESP", Default = false })
+
+RightVisuals:AddToggle("Fullbright", { Text = "Fullbright", Default = false })
+RightVisuals:AddToggle("NoFog", { Text = "No Fog", Default = false })
+
+-- // PERSISTENT LOGIC LOOPS \\ --
+
+-- Player Modifiers Loop
+task.spawn(function()
+    while true do
+        local char = lp.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+        if hum then
+            if Toggles.Speedhack and Toggles.Speedhack.Value then
+                hum.WalkSpeed = Options.WalkSpeed.Value
+            end
+            
+            if Toggles.JumpHack and Toggles.JumpHack.Value then
+                hum.UseJumpPower = true
+                hum.JumpPower = Options.JumpPower.Value
+            end
+        end
+
+        if Toggles.AntiVoid then
+            workspace.FallenPartsDestroyHeight = Toggles.AntiVoid.Value and -50000 or -500
+        end
+
+        task.wait(0.1)
+    end
+end)
+
+-- Noclip Logic
+RunService.Stepped:Connect(function()
+    if Toggles.Noclip and Toggles.Noclip.Value and lp.Character then
+        for _, v in pairs(lp.Character:GetDescendants()) do
+            if v:IsA("BasePart") then
+                v.CanCollide = false
+            end
+        end
+    end
+end)
+
+-- Infinite Jump Hook
+UIS.JumpRequest:Connect(function()
+    if Toggles.InfJump and Toggles.InfJump.Value then
+        local char = lp.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end)
+
+-- Lighting Restoration & Enforcement (Fixes Blinking/Delayed Apply)
+RunService.RenderStepped:Connect(function()
+    if Toggles.Fullbright and Toggles.Fullbright.Value then 
+        Lighting.Ambient = Color3.new(1,1,1) 
+        Lighting.OutdoorAmbient = Color3.new(1,1,1) 
+        Lighting.ClockTime = 14 
+    end
+    if Toggles.NoFog and Toggles.NoFog.Value then 
+        Lighting.FogEnd = 1e5 
+        if atmos then atmos.Density = 0 end 
+    end
+end)
+
+Toggles.Fullbright:OnChanged(function()
+    if not Toggles.Fullbright.Value then
+        Lighting.Ambient = origLighting.Ambient
+        Lighting.OutdoorAmbient = origLighting.OutdoorAmbient
+        Lighting.ClockTime = origLighting.ClockTime
+    end
+end)
+
+Toggles.NoFog:OnChanged(function()
+    if not Toggles.NoFog.Value then
+        Lighting.FogEnd = origLighting.FogEnd
+        if atmos then atmos.Density = origDensity end
+    end
+end)
+
+-- Visuals & Godmode Loop (Optimized for instant apply & no blinking)
+task.spawn(function()
+    while true do
+        local targets = {}
+        
+        -- Only scan necessary folders instead of the entire workspace to prevent lag & blinking
+        for _, p in ipairs(game.Players:GetPlayers()) do
+            if p ~= lp and p.Character then
+                table.insert(targets, p.Character)
+            end
+        end
+        
+        local piggyFolder = workspace:FindFirstChild("PiggyNPC")
+        if piggyFolder then
+            for _, npc in ipairs(piggyFolder:GetChildren()) do
+                table.insert(targets, npc)
+            end
+        end
+        
+        for _, v in ipairs(targets) do
+            if v:IsA("Model") then
+                -- Identification
+                local isStunned = v:FindFirstChild("IsStunned")
+                local traitorValue = v:FindFirstChild("Traitor")
+                local isTraitor = traitorValue and traitorValue:IsA("BoolValue") and traitorValue.Value == true
+                local isBot = v:FindFirstChild("BotMainScript")
+                local isGoodBot = v:FindFirstChild("NPCScript")
+                local isPiggy = (piggyFolder and v:IsDescendantOf(piggyFolder))
+                local isPlayer = game.Players:GetPlayerFromCharacter(v)
+
+                local highlight = v:FindFirstChildOfClass("Highlight")
+                local color = nil
+
+                -- Color Selection Logic (Bots prioritized over general Piggy to ensure they turn Blue)
+                if isStunned and isPlayer and Toggles.PlayerESP.Value then
+                    color = Color3.fromRGB(255, 0, 0) -- Red ONLY for Stunned Players
+                elseif isTraitor and Toggles.TraitorESP.Value then 
+                    color = Color3.fromRGB(255, 127, 0) -- Orange for Traitor
+                elseif isBot and Toggles.BotsESP.Value then 
+                    color = Color3.fromRGB(0, 0, 255) -- Blue for Bots
+                elseif isPiggy and Toggles.PiggyESP.Value then 
+                    color = Color3.fromRGB(255, 0, 0) -- Red for Piggy
+                elseif isGoodBot and Toggles.GoodBotsESP.Value then 
+                    color = Color3.fromRGB(255, 255, 0) -- Yellow for Good Bots
+                elseif isPlayer and Toggles.PlayerESP.Value then 
+                    color = Color3.fromRGB(0, 255, 0) -- Green for Players
+                end
+                
+                if color then
+                    if not highlight then
+                        highlight = Instance.new("Highlight", v)
+                        highlight.FillTransparency = 0.5
+                    end
+                    highlight.Enabled = true
+                    highlight.FillColor = color
+                elseif highlight then
+                    highlight.Enabled = false
+                end
+
+                -- Godmode Logic (Bots only)
+                if Toggles.Godmode and Toggles.Godmode.Value and (isBot or isPiggy) then
+                    updateHitboxes(v, false)
+                elseif Toggles.Godmode and not Toggles.Godmode.Value and (isBot or isPiggy) then
+                    updateHitboxes(v, true)
+                end
+            end
+        end
+
+        task.wait(0.1) -- Fast loop prevents bot from hitting you when it spawns
+    end
+end)
+
+-- Godmode DP
+task.spawn(function()
+    while true do
+        if Toggles.GodmodeDP and Toggles.GodmodeDP.Value then
+            local char = lp.Character
+            if char then
+                for _, v in ipairs(char:GetDescendants()) do
+                    if v:IsA("BasePart") and v.CanTouch ~= false then
+                        v.CanTouch = false
+                    end
+                end
+            end
+        end
+        task.wait(0.1)
+    end
+end)
+
+Toggles.GodmodeDP:OnChanged(function()
+    if not Toggles.GodmodeDP.Value then
+        local char = lp.Character
+        if char then
+            for _, v in ipairs(char:GetDescendants()) do
+                if v:IsA("BasePart") then
+                    v.CanTouch = true
+                end
+            end
+        end
+    end
+end)
+
+-- Auto Kill Loop with 30s Piggy Delay
+local wasPiggy = false
+local piggySpawnTime = 0
+
+task.spawn(function()
+    while true do
+        if Toggles.AutoKill and Toggles.AutoKill.Value then
+            local myChar = lp.Character
+            local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
+            local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+            
+            if myHrp and myHum then
+                local isStunned = myChar:FindFirstChild("IsStunned")
+                local traitorVal = myChar:FindFirstChild("Traitor")
+                local isTraitor = traitorVal and traitorVal:IsA("BoolValue") and traitorVal.Value == true
+                local knife = lp.Backpack:FindFirstChild("Knife") or myChar:FindFirstChild("Knife")
+
+                local canKill = false
+
+                if isStunned then
+                    if not wasPiggy then
+                        wasPiggy = true
+                        piggySpawnTime = tick()
+                    end
+                    if tick() - piggySpawnTime >= 30 then
+                        canKill = true
+                    end
+                else
+                    wasPiggy = false
+                end
+
+                if isTraitor and knife then
+                    canKill = true
+                end
+
+                if canKill then
+                    if isTraitor and knife and knife.Parent == lp.Backpack then myHum:EquipTool(knife) end
+
+                    for _, p in ipairs(game.Players:GetPlayers()) do
+                        if p ~= lp and p.Character and not p.Character:FindFirstChild("IsStunned") then
+                            local tHrp = p.Character:FindFirstChild("HumanoidRootPart")
+                            local tHum = p.Character:FindFirstChildOfClass("Humanoid")
+                            if tHrp and tHum and tHum.Health > 0 then
+                                for i = 1, 10 do
+                                    if not Toggles.AutoKill.Value or not (myChar:FindFirstChild("IsStunned") or (myChar:FindFirstChild("Traitor") and myChar:FindFirstChild("Traitor").Value)) then break end
+                                    
+                                    local predictPos = tHrp.Position + (tHrp.Velocity * 0.1)
+                                    myHrp.CFrame = CFrame.new(predictPos)
+                                    
+                                    task.wait(0.1)
+                                end
+                            end
+                        end
+                        if not Toggles.AutoKill.Value then break end
+                    end
+                end
+            else
+                wasPiggy = false
+            end
+        end
+        task.wait(0.1)
+    end
+end)
+
+-- // TAB: UI SETTINGS \\ --
+local MenuGroup = Tabs["UI Settings"]:AddLeftGroupbox("Menu", "wrench")
+MenuGroup:AddToggle("KeybindMenuOpen", { Default = Library.KeybindFrame.Visible, Text = "Open Keybind Menu", Callback = function(v) Library.KeybindFrame.Visible = v end })
+MenuGroup:AddButton("Unload", function() Library:Unload() end)
+MenuGroup:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", { Default = "RightShift", NoUI = true, Text = "Menu keybind" })
+
+Library.ToggleKeybind = Options.MenuKeybind
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+ThemeManager:SetFolder("SynthHub")
+SaveManager:SetFolder("SynthHub/Piggy")
+SaveManager:BuildConfigSection(Tabs["UI Settings"])
+ThemeManager:ApplyToTab(Tabs["UI Settings"])
+SaveManager:LoadAutoloadConfig()
 else
     warn("We do not support this game. In case you're in Dandy's World lobby, please join a match so it works.")
 end
