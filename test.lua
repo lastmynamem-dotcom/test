@@ -5517,7 +5517,7 @@ SaveManager:BuildConfigSection(Tabs['UI Settings']); ThemeManager:ApplyToTab(Tab
 Tabs['UI Settings']:AddLeftGroupbox('Menu'):AddButton('Unload', function()
     AimbotCircle:Remove(); Library:Unload()
 end)
-elseif currentID == 4623386862 or 5661005779 then
+elseif currentID == 4623386862 or currentID == 5661005779 then
 -- // VARIABLES \\ --
 local lp = game.Players.LocalPlayer
 local Lighting = game:GetService("Lighting")
