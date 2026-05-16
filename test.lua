@@ -6204,6 +6204,759 @@ SaveManager:SetFolder("SynthHub/Piggy")
 SaveManager:BuildConfigSection(Tabs["UI Settings"])
 ThemeManager:ApplyToTab(Tabs["UI Settings"])
 SaveManager:LoadAutoloadConfig()
+elseif currentID == 142823291 then
+
+-- // SERVICES & VARIABLES \\ --
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Vim = game:GetService("VirtualInputManager")
+local Lighting = game:GetService("Lighting")
+
+local lp = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- // ENVIRONMENT & LIGHTING ORIGINALS \\ --
+local origLighting = {
+    Ambient = Lighting.Ambient,
+    OutdoorAmbient = Lighting.OutdoorAmbient,
+    ClockTime = Lighting.ClockTime,
+    FogEnd = Lighting.FogEnd
+}
+local atmos = Lighting:FindFirstChildOfClass("Atmosphere")
+local origDensity = atmos and atmos.Density or 0.3
+
+-- // FLIGHT VARIABLES \\ --
+local flyKeyDown, flyKeyUp
+local control = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
+local lControl = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
+local flySpeed_Multiplier = 0
+
+-- // LIBRARY & SCRIPT SETUP \\ --
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+
+local Options = Library.Options
+local Toggles = Library.Toggles
+
+Library.ForceCheckbox = false 
+Library.ShowToggleFrameInKeybinds = true 
+
+local Window = Library:CreateWindow({
+    Title = "Synth Hub",
+    Footer = "Version: 1",
+    NotifySide = "Right",
+    ShowCustomCursor = true,
+})
+
+-- // TABS & GROUPBOXES \\ --
+local Tabs = {
+    Main = Window:AddTab("Main", "boxes"),
+    Player = Window:AddTab("Player", "user"),
+    Visuals = Window:AddTab("Visuals", "eye"),
+    ["UI Settings"] = Window:AddTab("UI Settings", "settings"),
+}
+
+-- Main Tab Groupboxes
+local leftgroupbox = Tabs.Main:AddLeftGroupbox("Automation")
+local FarmBox = Tabs.Main:AddLeftGroupbox("Farming")
+local CombatBox = Tabs.Main:AddRightGroupbox("Combat")
+local MiscBox = Tabs.Main:AddRightGroupbox("Misc.")
+
+-- Player Tab Groupboxes
+local PlayerGroupBox = Tabs.Player:AddLeftGroupbox("Local Player")
+
+-- Visuals Tab Groupboxes
+local ESPBox = Tabs.Visuals:AddLeftGroupbox("Role ESP")
+local EnvironmentBox = Tabs.Visuals:AddRightGroupbox("Environment")
+
+-- // MISC FEATURES \\ --
+MiscBox:AddToggle("SecondLife", { Text = "Second Life", Default = false })
+
+local function HookSecondLife(char)
+    local hum = char:WaitForChild("Humanoid", 5)
+    if hum then
+        hum.HealthChanged:Connect(function()
+            if Toggles.SecondLife.Value and hum.Health < hum.MaxHealth then
+                hum.Health = hum.MaxHealth
+            end
+        end)
+    end
+end
+
+if lp.Character then
+    task.spawn(HookSecondLife, lp.Character)
+end
+lp.CharacterAdded:Connect(HookSecondLife)
+
+MiscBox:AddDivider()
+
+-- // FLING LOGIC \\ --
+local function GetFlingTarget(role)
+    for _, v in pairs(Players:GetPlayers()) do
+        if v ~= lp and v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
+            local hasGun = v.Character:FindFirstChild("Gun") or v.Character:FindFirstChild("Revolver") or (v.Backpack and (v.Backpack:FindFirstChild("Gun") or v.Backpack:FindFirstChild("Revolver")))
+            local hasKnife = v.Character:FindFirstChild("Knife") or (v.Backpack and v.Backpack:FindFirstChild("Knife"))
+            
+            if role == "Murderer" and hasKnife then return v.Character.HumanoidRootPart end
+            if role == "Sheriff" and hasGun then return v.Character.HumanoidRootPart end
+        end
+    end
+    return nil
+end
+
+local function Fling(targetPart)
+    if not targetPart or not lp.Character or not lp.Character:FindFirstChild("HumanoidRootPart") then return end
+    
+    local hrp = lp.Character.HumanoidRootPart
+    local oldPos = hrp.CFrame
+    local startTime = tick()
+    
+    local bam = Instance.new("BodyAngularVelocity")
+    bam.P = 1000000
+    bam.AngularVelocity = Vector3.new(0, 999999, 0)
+    bam.MaxTorque = Vector3.new(0, math.huge, 0)
+    bam.Parent = hrp
+    
+    local bvel = Instance.new("BodyVelocity")
+    bvel.Velocity = Vector3.new(0, 0, 0)
+    bvel.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    bvel.P = 1000000
+    bvel.Parent = hrp
+    
+    while tick() - startTime < 5 do
+        if not targetPart or not targetPart.Parent then break end
+        hrp.CFrame = targetPart.CFrame * CFrame.new(0, 0, 0)
+        task.wait()
+        hrp.CFrame = targetPart.CFrame * CFrame.new(math.random(-1, 1), 0, math.random(-1, 1))
+        task.wait()
+    end
+    
+    bam:Destroy()
+    bvel:Destroy()
+    hrp.Velocity = Vector3.new(0, 0, 0)
+    hrp.RotVelocity = Vector3.new(0, 0, 0)
+    hrp.CFrame = oldPos
+end
+
+MiscBox:AddButton("Fling Murderer", function()
+    local target = GetFlingTarget("Murderer")
+    if target then Fling(target) else Library:Notify("Murderer not found!") end
+end)
+
+MiscBox:AddButton("Fling Sheriff", function()
+    local target = GetFlingTarget("Sheriff")
+    if target then Fling(target) else Library:Notify("Sheriff not found!") end
+end)
+
+-- // COMBAT FEATURES (SHERIFF AIMBOT & AUTO KILL ALL) \\ --
+CombatBox:AddToggle("SheriffAimbot", { Text = "Sheriff Aimbot", Default = false })
+CombatBox:AddSlider("AimPrediction", {
+    Text = "Prediction Factor",
+    Default = 0.155,
+    Min = 0,
+    Max = 1,
+    Rounding = 3,
+    Compact = true
+})
+
+local holdingRightClick = false
+
+local function lpHasGun()
+    local char = lp.Character
+    if not char then return false end
+    local gun = char:FindFirstChild("Gun") or char:FindFirstChild("Revolver")
+    local bp = lp:FindFirstChild("Backpack")
+    local gunInBp = bp and (bp:FindFirstChild("Gun") or bp:FindFirstChild("Revolver"))
+    return gun ~= nil or gunInBp ~= nil
+end
+
+local function hasKnife(player)
+    if player == lp or not player.Character then return false end
+    local toolInChar = player.Character:FindFirstChild("Knife")
+    local backpack = player:FindFirstChild("Backpack")
+    local toolInBackpack = backpack and backpack:FindFirstChild("Knife")
+    return (toolInChar ~= nil or toolInBackpack ~= nil)
+end
+
+local function getClosestTarget()
+    local closestTarget = nil
+    local shortestDistance = math.huge
+    local currentPrediction = Options.AimPrediction.Value
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if hasKnife(player) then
+            local rootPart = player.Character:FindFirstChild("HumanoidRootPart")
+            if rootPart then
+                local predictedPos = rootPart.Position + (rootPart.AssemblyLinearVelocity * currentPrediction)
+                local screenPos, onScreen = Camera:WorldToViewportPoint(predictedPos)
+                
+                if onScreen then
+                    local mousePos = UserInputService:GetMouseLocation()
+                    local distance = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                    
+                    if distance < shortestDistance then
+                        closestTarget = rootPart
+                        shortestDistance = distance
+                    end
+                end
+            end
+        end
+    end
+    return closestTarget
+end
+
+UserInputService.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        holdingRightClick = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        holdingRightClick = false
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    if Toggles.SheriffAimbot.Value and holdingRightClick and lpHasGun() then
+        local target = getClosestTarget()
+        if target then
+            local currentPrediction = Options.AimPrediction.Value
+            local targetVelocity = target.AssemblyLinearVelocity
+            local predictedPosition = target.Position + (targetVelocity * currentPrediction)
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, predictedPosition)
+        end
+    end
+end)
+
+CombatBox:AddDivider()
+CombatBox:AddToggle("AutoKillAll", { Text = "Auto Kill All", Default = false })
+
+local function doClicks()
+    Vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+    task.wait(0.01)
+    Vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+end
+
+task.spawn(function()
+    while task.wait(0.1) do
+        if Toggles.AutoKillAll.Value then
+            local char = lp.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                local hrp = char.HumanoidRootPart
+                local knife = char:FindFirstChild("Knife") or (lp.Backpack and lp.Backpack:FindFirstChild("Knife"))
+
+                if knife then
+                    if knife.Parent ~= char then
+                        char.Humanoid:EquipTool(knife)
+                    end
+
+                    for _, v in pairs(Players:GetPlayers()) do
+                        if v ~= lp and v.Character and v.Character:FindFirstChild("HumanoidRootPart") and v.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
+                            local targetChar = v.Character
+                            local targetHrp = targetChar.HumanoidRootPart
+                            local affectedParts = {}
+
+                            for _, part in pairs(targetChar:GetChildren()) do
+                                if part:IsA("BasePart") then
+                                    local oldCollide = part.CanCollide
+                                    local oldTouch = part.CanTouch
+                                    part.CanCollide = false
+                                    part.CanTouch = false
+                                    part.AssemblyLinearVelocity = Vector3.zero
+                                    part.AssemblyAngularVelocity = Vector3.zero
+                                    table.insert(affectedParts, { part = part, oldCollide = oldCollide, oldTouch = oldTouch })
+                                end
+                            end
+
+                            task.spawn(function()
+                                task.wait(10)
+                                for _, data in pairs(affectedParts) do
+                                    if data.part and data.part.Parent then
+                                        data.part.CanCollide = data.oldCollide
+                                        data.part.CanTouch = data.oldTouch
+                                    end
+                                end
+                            end)
+
+                            targetHrp.CFrame = hrp.CFrame * CFrame.new(0, 0, -3)
+                            targetHrp.AssemblyLinearVelocity = Vector3.zero
+                            targetHrp.AssemblyAngularVelocity = Vector3.zero
+
+                            doClicks()
+                            task.wait(0.05)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- // AUTOMATION FEATURES (AUTO GET GUN) \\ --
+leftgroupbox:AddToggle("AutoGetGun", { Text = "Auto Get Gun", Default = false })
+
+task.spawn(function()
+    while task.wait(1) do
+        if Toggles.AutoGetGun.Value then
+            local char = lp.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                local hrp = char.HumanoidRootPart
+                for _, v in pairs(workspace:GetDescendants()) do
+                    if v.Name == "GunDrop" and v:IsA("BasePart") then
+                        firetouchinterest(hrp, v, 0)
+                        task.wait()
+                        firetouchinterest(hrp, v, 1)
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- // FARMING FEATURES (AUTO FARM) \\ --
+FarmBox:AddToggle("AutoFarm", { 
+    Text = "Auto Farm Coins", 
+    Default = false, 
+    Tooltip = "Farms Coins Automatically.", 
+})
+
+FarmBox:AddSlider("FarmSpeed", {
+    Text = "Farm Speed", Default = 25, Min = 15, Max = 35, Rounding = 0, Compact = true
+})
+
+FarmBox:AddDropdown("FarmMode", {
+    Values = { "Reset", "Stop" }, Default = "Reset", Multi = false, Text = "After collecting all coins",
+})
+
+local currentTween = nil
+local noCoin = Vector3.new(14.1336861, 516.701965, -25.1938229)
+local hasCollected = false
+
+local function getNearestCoin(rootPart)
+    local nearestCoin = nil
+    local shortestDistance = math.huge
+
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj.Name == "MainCoin" and obj:IsA("BasePart") and obj.Transparency == 0 then
+            local distance = (rootPart.Position - obj.Position).Magnitude
+            if distance < shortestDistance then
+                shortestDistance = distance
+                nearestCoin = obj
+            end
+        end
+    end
+    return nearestCoin
+end
+
+task.spawn(function()
+    while task.wait() do
+        if not Toggles.AutoFarm.Value then
+            hasCollected = false
+            if currentTween then
+                currentTween:Cancel()
+                currentTween = nil
+            end
+            task.wait(0.5)
+        else
+            local char = lp.Character
+            if char then
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                
+                if not hrp or not hum or hum.Health <= 0 then 
+                    hasCollected = false
+                    task.wait(1)
+                else
+                    local distanceToZone = (hrp.Position - noCoin).Magnitude
+                    if distanceToZone <= 200 then
+                        hasCollected = false
+                        if currentTween then
+                            currentTween:Cancel()
+                            currentTween = nil
+                        end
+                        task.wait(1)
+                    else
+                        local coin = getNearestCoin(hrp)
+
+                        if coin then
+                            hasCollected = true
+                            local speed = Options.FarmSpeed.Value
+                            local distance = (hrp.Position - coin.Position).Magnitude
+                            local duration = math.max(distance / speed, 0.05)
+
+                            if currentTween then currentTween:Cancel() end
+
+                            currentTween = TweenService:Create(hrp, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = CFrame.new(coin.Position)})
+                            currentTween:Play()
+
+                            repeat
+                                task.wait()
+                                if not char or not hrp or hum.Health <= 0 then break end
+                            until not coin.Parent or coin.Transparency > 0 or not Toggles.AutoFarm.Value or (hrp.Position - coin.Position).Magnitude <= 2
+                        else
+                            if hasCollected then
+                                if Options.FarmMode.Value == "Reset" then
+                                    if hum.Health > 0 then
+                                        char:BreakJoints()
+                                        task.wait(0.05)
+                                        char:BreakJoints()
+                                        task.wait(3) 
+                                    end
+                                elseif Options.FarmMode.Value == "Stop" then
+                                    if currentTween then
+                                        currentTween:Cancel()
+                                        currentTween = nil
+                                    end
+                                    repeat 
+                                        task.wait(1) 
+                                    until getNearestCoin(hrp) or not Toggles.AutoFarm.Value
+                                end
+                                hasCollected = false
+                            else
+                                task.wait(1)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- // TAB: PLAYER (MERGED FROM MYPIGGY) \\ --
+PlayerGroupBox:AddToggle("Speedhack", { 
+    Text = "Speedhack", 
+    Default = false,
+    Callback = function(Value)
+        if not Value then
+            local hum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.WalkSpeed = 16 end
+        end
+    end
+})
+PlayerGroupBox:AddSlider("WalkSpeed", {
+    Text = "WalkSpeed", Default = 16, Min = 0, Max = 300, Rounding = 0, Compact = true
+})
+
+PlayerGroupBox:AddToggle("JumpHack", { 
+    Text = "Jump Power", 
+    Default = false,
+    Callback = function(Value)
+        if not Value then
+            local hum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.JumpPower = 50 end
+        end
+    end
+})
+PlayerGroupBox:AddSlider("JumpPower", {
+    Text = "JumpPower", Default = 50, Min = 0, Max = 300, Rounding = 0, Compact = true
+})
+
+PlayerGroupBox:AddDivider()
+
+PlayerGroupBox:AddToggle("Noclip", { Text = "Noclip", Default = false })
+PlayerGroupBox:AddToggle("Fly", { Text = "Fly", Default = false })
+PlayerGroupBox:AddSlider("FlySpeed", {
+    Text = "Fly Speed", Default = 30, Min = 10, Max = 150, Rounding = 0, Compact = true
+})
+
+PlayerGroupBox:AddDivider()
+
+PlayerGroupBox:AddToggle("InfJump", { Text = "Infinite Jump", Default = false })
+PlayerGroupBox:AddToggle("AntiVoid", { Text = "Disable Roblox Void", Default = false })
+
+-- // TAB: VISUALS ENVIRONMENT (MERGED FROM MYPIGGY) \\ --
+EnvironmentBox:AddToggle("Fullbright", { Text = "Fullbright", Default = false })
+EnvironmentBox:AddToggle("NoFog", { Text = "No Fog", Default = false })
+
+-- // IY-BASED FLIGHT LOGIC \\ --
+flyKeyDown = UserInputService.InputBegan:Connect(function(input, processed)
+    if processed or not Toggles.Fly.Value then return end
+    local speed = 1
+    if input.KeyCode == Enum.KeyCode.W then control.F = speed
+    elseif input.KeyCode == Enum.KeyCode.S then control.B = -speed
+    elseif input.KeyCode == Enum.KeyCode.A then control.L = -speed
+    elseif input.KeyCode == Enum.KeyCode.D then control.R = speed
+    elseif input.KeyCode == Enum.KeyCode.E then control.Q = speed * 2
+    elseif input.KeyCode == Enum.KeyCode.Q then control.E = -speed * 2 end
+end)
+
+flyKeyUp = UserInputService.InputEnded:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.W then control.F = 0
+    elseif input.KeyCode == Enum.KeyCode.S then control.B = 0
+    elseif input.KeyCode == Enum.KeyCode.A then control.L = 0
+    elseif input.KeyCode == Enum.KeyCode.D then control.R = 0
+    elseif input.KeyCode == Enum.KeyCode.E then control.Q = 0
+    elseif input.KeyCode == Enum.KeyCode.Q then control.E = 0 end
+end)
+
+local function startFly()
+    local char = lp.Character or lp.CharacterAdded:Wait()
+    local root = char:WaitForChild("HumanoidRootPart")
+    local hum = char:WaitForChild("Humanoid")
+    local camera = workspace.CurrentCamera
+
+    hum.PlatformStand = true
+    local BG = Instance.new('BodyGyro', root)
+    local BV = Instance.new('BodyVelocity', root)
+    
+    BG.P = 9e4
+    BG.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+    BG.CFrame = root.CFrame
+    BV.Velocity = Vector3.new(0,0,0)
+    BV.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+
+    task.spawn(function()
+        local controlModule
+        pcall(function()
+            controlModule = require(lp.PlayerScripts:WaitForChild("PlayerModule"):WaitForChild("ControlModule"))
+        end)
+
+        while Toggles.Fly.Value and char.Parent do
+            local sliderSpeed = Options.FlySpeed and Options.FlySpeed.Value or 50
+            
+            if (control.L + control.R ~= 0) or (control.F + control.B ~= 0) or (control.Q + control.E ~= 0) then
+                flySpeed_Multiplier = 50
+            else
+                flySpeed_Multiplier = 0
+            end
+
+            if flySpeed_Multiplier ~= 0 then
+                BV.Velocity = ((camera.CFrame.LookVector * (control.F + control.B)) + ((camera.CFrame * CFrame.new(control.L + control.R, (control.F + control.B + control.Q + control.E) * 0.2, 0).p) - camera.CFrame.p)) * sliderSpeed
+                lControl = {F = control.F, B = control.B, L = control.L, R = control.R}
+            else
+                local direction = controlModule and controlModule:GetMoveVector() or Vector3.new(0,0,0)
+                if direction.Magnitude > 0 then
+                    BV.Velocity = (camera.CFrame.RightVector * (direction.X * sliderSpeed)) + (camera.CFrame.LookVector * (direction.Z * -sliderSpeed))
+                else
+                    BV.Velocity = Vector3.new(0, 0, 0)
+                end
+            end
+            
+            BG.CFrame = camera.CFrame
+            RunService.RenderStepped:Wait()
+        end
+
+        BG:Destroy()
+        BV:Destroy()
+        hum.PlatformStand = false
+    end)
+end
+
+Toggles.Fly:OnChanged(function()
+    if Toggles.Fly.Value then
+        startFly()
+    else
+        pcall(function() workspace.CurrentCamera.CameraType = Enum.CameraType.Custom end)
+        if lp.Character and lp.Character:FindFirstChildOfClass("Humanoid") then
+            lp.Character:FindFirstChildOfClass("Humanoid").PlatformStand = false
+        end
+    end
+end)
+
+-- // PERSISTENT PLAYER LOOPS & ENVIRONMENT HOOKS \\ --
+task.spawn(function()
+    while true do
+        local char = lp.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+        if hum then
+            if Toggles.Speedhack and Toggles.Speedhack.Value then
+                hum.WalkSpeed = Options.WalkSpeed.Value
+            end
+            
+            if Toggles.JumpHack and Toggles.JumpHack.Value then
+                hum.UseJumpPower = true
+                hum.JumpPower = Options.JumpPower.Value
+            end
+        end
+
+        if Toggles.AntiVoid then
+            workspace.FallenPartsDestroyHeight = Toggles.AntiVoid.Value and -50000 or -500
+        end
+
+        -- Fullbright & No Fog Dynamic Refresh
+        if Toggles.Fullbright.Value then 
+            Lighting.Ambient = Color3.new(1,1,1) 
+            Lighting.OutdoorAmbient = Color3.new(1,1,1) 
+            Lighting.ClockTime = 14 
+        else
+            Lighting.Ambient = origLighting.Ambient
+            Lighting.OutdoorAmbient = origLighting.OutdoorAmbient
+            Lighting.ClockTime = origLighting.ClockTime
+        end
+
+        if Toggles.NoFog.Value then 
+            Lighting.FogEnd = 1e5 
+            if atmos then atmos.Density = 0 end 
+        else
+            Lighting.FogEnd = origLighting.FogEnd
+            if atmos then atmos.Density = origDensity end
+        end
+
+        task.wait(0.1)
+    end
+end)
+
+-- Noclip Execution Hook
+RunService.Stepped:Connect(function()
+    if Toggles.Noclip and Toggles.Noclip.Value and lp.Character then
+        for _, v in pairs(lp.Character:GetDescendants()) do
+            if v:IsA("BasePart") then
+                v.CanCollide = false
+            end
+        end
+    end
+end)
+
+-- Infinite Jump Listener
+UserInputService.JumpRequest:Connect(function()
+    if Toggles.InfJump and Toggles.InfJump.Value then
+        local char = lp.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end)
+
+-- // VISUALS ESP \\ --
+ESPBox:AddToggle("InnocentESP", { Text = "Innocent ESP", Default = false }):AddColorPicker("InnocentColor", { Default = Color3.fromRGB(50, 205, 50), Title = "Innocent Color", Transparency = 0 })
+ESPBox:AddToggle("MurdererESP", { Text = "Murderer ESP", Default = false }):AddColorPicker("MurdererColor", { Default = Color3.fromRGB(220, 40, 40), Title = "Murderer Color", Transparency = 0 })
+ESPBox:AddToggle("SheriffESP", { Text = "Sheriff ESP", Default = false }):AddColorPicker("SheriffColor", { Default = Color3.fromRGB(40, 120, 255), Title = "Sheriff Color", Transparency = 0 })
+
+local HL_TAG = "_WH"
+local function getPlayerRole(character, player)
+    local role = "Innocent"
+    local priority = 0
+    
+    local function checkTool(tool)
+        if not tool:IsA("Tool") then return end
+        local lower = tool.Name:lower()
+        if (lower:find("gun") or lower:find("revolver")) and priority < 2 then
+            role = "Sheriff"
+            priority = 2
+        elseif lower:find("knife") and priority < 1 then
+            role = "Murderer"
+            priority = 1
+        end
+    end
+    
+    for _, obj in ipairs(character:GetChildren()) do checkTool(obj) end
+    local bp = player:FindFirstChildOfClass("Backpack")
+    if bp then for _, obj in ipairs(bp:GetChildren()) do checkTool(obj) end end
+    
+    return role
+end
+
+local function updateESP(player)
+    if player == lp then return end
+    local character = player.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+
+    local role = getPlayerRole(character, player)
+    local isEnabled = (role == "Innocent" and Toggles.InnocentESP.Value) or (role == "Murderer" and Toggles.MurdererESP.Value) or (role == "Sheriff" and Toggles.SheriffESP.Value)
+    local espColor = (role == "Innocent" and Options.InnocentColor.Value) or (role == "Murderer" and Options.MurdererColor.Value) or (role == "Sheriff" and Options.SheriffColor.Value)
+
+    local hl = character:FindFirstChild(HL_TAG)
+    if isEnabled then
+        if not hl then
+            hl = Instance.new("Highlight")
+            hl.Name = HL_TAG
+            hl.Adornee = character
+            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            hl.FillTransparency = 0.5
+            hl.OutlineTransparency = 0
+            hl.Parent = character
+        end
+        hl.FillColor = espColor
+    elseif hl then
+        hl:Destroy()
+    end
+end
+
+local function hookESP(player)
+    player.CharacterAdded:Connect(function(char)
+        char:WaitForChild("HumanoidRootPart")
+        RunService.Heartbeat:Connect(function()
+            if char and char.Parent then updateESP(player) end
+        end)
+    end)
+    if player.Character then
+        task.spawn(function()
+            player.Character:WaitForChild("HumanoidRootPart")
+            RunService.Heartbeat:Connect(function()
+                if player.Character and player.Character.Parent then updateESP(player) end
+            end)
+        end)
+    end
+end
+
+Players.PlayerAdded:Connect(hookESP)
+for _, v in pairs(Players:GetPlayers()) do hookESP(v) end
+
+-- // UI SETTINGS \\ --
+local MenuGroup = Tabs["UI Settings"]:AddLeftGroupbox("Menu", "wrench")
+
+MenuGroup:AddToggle("KeybindMenuOpen", {
+    Default = Library.KeybindFrame.Visible,
+    Text = "Open Keybind Menu",
+    Callback = function(value)
+        Library.KeybindFrame.Visible = value
+    end,
+})
+
+MenuGroup:AddToggle("ShowCustomCursor", {
+    Text = "Custom Cursor",
+    Default = true,
+    Callback = function(Value)
+        Library.ShowCustomCursor = Value
+    end,
+})
+
+MenuGroup:AddDropdown("NotificationSide", {
+    Values = { "Left", "Right" },
+    Default = "Right",
+    Text = "Notification Side",
+    Callback = function(Value)
+        Library:SetNotifySide(Value)
+    end,
+})
+
+MenuGroup:AddSlider("UICornerSlider", {
+    Text = "Corner Radius",
+    Default = Library.CornerRadius,
+    Min = 0,
+    Max = 20,
+    Rounding = 0,
+    Callback = function(value)
+        Window:SetCornerRadius(value)
+    end
+})
+
+MenuGroup:AddDivider()
+MenuGroup:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", { Default = "RightShift", NoUI = true, Text = "Menu keybind" })
+
+MenuGroup:AddButton("Unload", function()
+    Library:Unload()
+end)
+
+Library.ToggleKeybind = Options.MenuKeybind
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
+ThemeManager:SetFolder("MyScriptHub")
+SaveManager:SetFolder("MyScriptHub/specific-game")
+SaveManager:SetSubFolder("specific-place")
+SaveManager:BuildConfigSection(Tabs["UI Settings"])
+ThemeManager:ApplyToTab(Tabs["UI Settings"])
+SaveManager:LoadAutoloadConfig()
 else
     warn("We do not support this game. In case you're in Dandy's World lobby, please join a match so it works.")
 end
