@@ -6274,23 +6274,36 @@ local ESPBox = Tabs.Visuals:AddLeftGroupbox("Role ESP")
 local EnvironmentBox = Tabs.Visuals:AddRightGroupbox("Environment")
 
 -- // MISC FEATURES \\ --
-MiscBox:AddToggle("SecondLife", { Text = "Second Life", Default = false })
+MiscBox:AddToggle("SecondLife", {
+    Text = "Second Life",
+    Default = false
+})
 
-local function HookSecondLife(char)
-    local hum = char:WaitForChild("Humanoid", 5)
-    if hum then
-        hum.HealthChanged:Connect(function()
-            if Toggles.SecondLife.Value and hum.Health < hum.MaxHealth then
-                hum.Health = hum.MaxHealth
-            end
-        end)
-    end
+local lp = game.Players.LocalPlayer
+
+local function HookCharacter(char)
+    local hum = char:WaitForChild("Humanoid")
+
+    local used = false
+
+    hum.HealthChanged:Connect(function()
+        if not Toggles.SecondLife.Value then
+            return
+        end
+
+        -- only trigger once, right before death
+        if not used and hum.Health <= 0 then
+            used = true
+            hum.Health = hum.MaxHealth
+        end
+    end)
 end
 
 if lp.Character then
-    task.spawn(HookSecondLife, lp.Character)
+    HookCharacter(lp.Character)
 end
-lp.CharacterAdded:Connect(HookSecondLife)
+
+lp.CharacterAdded:Connect(HookCharacter)
 
 MiscBox:AddDivider()
 
