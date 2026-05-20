@@ -6970,6 +6970,906 @@ SaveManager:SetSubFolder("specific-place")
 SaveManager:BuildConfigSection(Tabs["UI Settings"])
 ThemeManager:ApplyToTab(Tabs["UI Settings"])
 SaveManager:LoadAutoloadConfig()
+elseif currentID == 70845479499574 then
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+
+local lp = game.Players.LocalPlayer
+local char = lp.Character or lp.CharacterAdded:Wait()
+local hrp = char:WaitForChild("HumanoidRootPart")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+
+local camera = workspace.CurrentCamera
+
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
+lp.CharacterAdded:Connect(function(newChar)
+    char = newChar
+    hrp = newChar:WaitForChild("HumanoidRootPart")
+end)
+
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+    local method = getnamecallmethod()
+    if method == "FireServer" and tostring(self) == "Movement" then
+        return
+    end
+    return oldNamecall(self, ...)
+end))
+
+local function fireEvent()
+    local genGui = lp.PlayerGui:FindFirstChild("Gen")
+    if not genGui then return end
+    local genMain = genGui:FindFirstChild("GeneratorMain")
+    if not genMain then return end
+    local genEvent = genMain:FindFirstChild("Event")
+    if not genEvent then return end
+    genEvent:FireServer({ Wires = true, Switches = true, Lever = true })
+end
+
+local function isGeneratorComplete(gen)
+    local progress = gen:GetAttribute("Progress")
+    return progress ~= nil and progress >= 100
+end
+
+local function isPlayerAlive()
+    local playersFolder = workspace:FindFirstChild("PLAYERS")
+    if not playersFolder then return false end
+    local aliveFolder = playersFolder:FindFirstChild("ALIVE")
+    if not aliveFolder then return false end
+    return char and char.Parent == aliveFolder
+end
+
+local Window = Fluent:CreateWindow({
+    Title = "Bite By Night",
+    SubTitle = "by Synth Hub",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(580, 520),
+    Acrylic = false,
+    Theme = "Midnight",
+    MinimizeKey = Enum.KeyCode.LeftControl
+})
+
+local Tabs = {
+    Main      = Window:AddTab({ Title = "Main",        Icon = "home"     }),
+    Survivor  = Window:AddTab({ Title = "Survivor",    Icon = "shield"   }),
+    ESP       = Window:AddTab({ Title = "ESP",         Icon = "eye"      }),
+    Environment = Window:AddTab({ Title = "Environment", Icon = "sun"    }),
+    Settings  = Window:AddTab({ Title = "Settings",    Icon = "settings" })
+}
+
+local Options = Fluent.Options
+
+local jumpBoost      = false
+local jpLoop, jpCA   = nil, nil
+local noclipEnabled  = false
+local noclipConn     = nil
+
+local aimlockEnabled = false
+local lockedTarget   = nil
+local lastTargetPos  = nil
+local lastUpdateTime = nil
+local aimlockBind    = Enum.UserInputType.MouseButton3
+local predict        = 0.65
+local smooth         = 0.25
+
+local autogen        = false
+local genconn, firingconn = nil, nil
+local lastfiretime   = 0
+local mode           = "Blatant"
+local customdelay    = 3
+
+local dotEnabled     = false
+local dotConn        = nil
+
+local instantInteract   = false
+local promptConnections = {}
+
+local viewKiller        = false
+local killerAddedConn   = nil
+local killerRemovedConn = nil
+
+getgenv().AutoParryEnabled  = false
+getgenv().BasicAttackRange  = 20
+getgenv().PullAttackRange   = 50
+
+local function notify(title, content)
+    Fluent:Notify({ Title = title, Content = content, Duration = 4 })
+end
+
+do
+    local StaminaConnection = nil
+    local StaminaToggle = Tabs.Main:AddToggle("InfStamina", { Title = "Infinite Stamina", Default = false })
+
+    StaminaToggle:OnChanged(function()
+        if Options.InfStamina.Value then
+            if StaminaConnection then StaminaConnection:Disconnect() end
+            StaminaConnection = RunService.Heartbeat:Connect(function()
+                if Options.InfStamina and Options.InfStamina.Value then
+                    if char and char.Parent then
+                        char:SetAttribute("Stamina", 100)
+                        char:SetAttribute("MaxStamina", 100)
+                    end
+                    if lp then lp:SetAttribute("Stamina", 100) end
+                else
+                    if StaminaConnection then StaminaConnection:Disconnect(); StaminaConnection = nil end
+                end
+            end)
+        else
+            if StaminaConnection then StaminaConnection:Disconnect(); StaminaConnection = nil end
+        end
+    end)
+
+    local AllowJumpingToggle = Tabs.Main:AddToggle("AllowJumping", {
+        Title = "Allow Jumping",
+        Default = false
+    })
+
+    AllowJumpingToggle:OnChanged(function()
+        jumpBoost = Options.AllowJumping.Value
+        if jumpBoost then
+            local function applyJumpPower()
+                local currentChar = lp.Character
+                if not currentChar then return end
+                local hum = currentChar:FindFirstChildOfClass("Humanoid")
+                if not hum then return end
+                if hum.UseJumpPower then hum.JumpPower = 1.5 else hum.JumpHeight = 1.5 end
+            end
+            applyJumpPower()
+            if jpLoop then jpLoop:Disconnect() end
+            local currentHum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
+            if currentHum then
+                jpLoop = currentHum:GetPropertyChangedSignal("JumpPower"):Connect(applyJumpPower)
+            end
+            if jpCA then jpCA:Disconnect() end
+            jpCA = lp.CharacterAdded:Connect(function(newChar)
+                local hum = newChar:WaitForChild("Humanoid")
+                applyJumpPower()
+                if jpLoop then jpLoop:Disconnect() end
+                jpLoop = hum:GetPropertyChangedSignal("JumpPower"):Connect(applyJumpPower)
+            end)
+            notify("Allow Jumping", "Enabled.")
+        else
+            if jpLoop then jpLoop:Disconnect() end
+            if jpCA then jpCA:Disconnect() end
+            local currentChar = lp.Character
+            if currentChar then
+                local hum = currentChar:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    if hum.UseJumpPower then hum.JumpPower = 0 else hum.JumpHeight = 0 end
+                end
+            end
+            notify("Allow Jumping", "Disabled.")
+        end
+    end)
+
+    local NoclipToggle = Tabs.Main:AddToggle("Noclip", {
+        Title = "Noclip",
+        Default = false
+    })
+
+    NoclipToggle:OnChanged(function()
+        noclipEnabled = Options.Noclip.Value
+        if noclipEnabled then
+            if noclipConn then noclipConn:Disconnect() end
+            noclipConn = RunService.Stepped:Connect(function()
+                if not noclipEnabled then return end
+                local currentChar = lp.Character
+                if not currentChar then return end
+                for _, part in ipairs(currentChar:GetDescendants()) do
+                    if part:IsA("BasePart") then part.CanCollide = false end
+                end
+            end)
+            notify("Noclip", "Enabled.")
+        else
+            if noclipConn then noclipConn:Disconnect() end
+            local currentChar = lp.Character
+            if currentChar then
+                for _, part in ipairs(currentChar:GetDescendants()) do
+                    if part:IsA("BasePart") then part.CanCollide = true end
+                end
+            end
+            notify("Noclip", "Disabled.")
+        end
+    end)
+
+    Tabs.Main:AddParagraph({
+        Title = "Aimlock Configuration",
+        Content = isMobile
+            and "On mobile, aimlock auto-targets the nearest opponent. Tap the Lock Target button to toggle lock."
+            or  "Press your bind to lock/unlock a target. Adjust prediction and smoothness below."
+    })
+
+    local function getMyTeamFolder()
+        local currentChar = lp.Character
+        if not currentChar then return nil end
+        local pf = workspace:FindFirstChild("PLAYERS")
+        if not pf then return nil end
+        local alive  = pf:FindFirstChild("ALIVE")
+        local killer = pf:FindFirstChild("KILLER")
+        if alive  and currentChar.Parent == alive  then return "ALIVE"  end
+        if killer and currentChar.Parent == killer then return "KILLER" end
+        return nil
+    end
+
+    local function findClosestTarget()
+        local myTeam = getMyTeamFolder()
+        if not myTeam then return nil end
+        local myChar = lp.Character
+        if not myChar then return nil end
+        local myRoot = myChar:FindFirstChild("HumanoidRootPart")
+        if not myRoot then return nil end
+
+        local targetFolderName = (myTeam == "ALIVE") and "KILLER" or "ALIVE"
+        local pf = workspace:FindFirstChild("PLAYERS")
+        local targetFolder = pf and pf:FindFirstChild(targetFolderName)
+        if not targetFolder then return nil end
+
+        local closest, shortest = nil, math.huge
+        for _, other in ipairs(game.Players:GetPlayers()) do
+            if other ~= lp and other.Character and other.Character.Parent == targetFolder then
+                local root = other.Character:FindFirstChild("HumanoidRootPart")
+                if root then
+                    local dist = (myRoot.Position - root.Position).Magnitude
+                    if dist < shortest then shortest = dist; closest = root end
+                end
+            end
+        end
+        return closest
+    end
+
+    local inputConn, renderConn
+
+    local AimlockToggle = Tabs.Main:AddToggle("Aimlock", {
+        Title = "Aimlock",
+        Default = false
+    })
+
+    local mobileLockButton
+    if isMobile then
+        mobileLockButton = Instance.new("ScreenGui")
+        mobileLockButton.Name = "AimlockMobileBtn"
+        mobileLockButton.ResetOnSpawn = false
+        mobileLockButton.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        mobileLockButton.Parent = lp.PlayerGui
+
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.fromOffset(80, 80)
+        btn.Position = UDim2.new(1, -100, 0.5, -40)
+        btn.AnchorPoint = Vector2.new(0, 0.5)
+        btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        btn.BackgroundTransparency = 0.35
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.Font = Enum.Font.GothamBold
+        btn.TextSize = 13
+        btn.Text = "🎯 Lock"
+        btn.Visible = false
+        btn.Parent = mobileLockButton
+
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 12)
+        corner.Parent = btn
+
+        btn.MouseButton1Click:Connect(function()
+            if lockedTarget then
+                lockedTarget = nil; lastTargetPos = nil; lastUpdateTime = nil
+                btn.Text = "🎯 Lock"
+                btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+            else
+                local found = findClosestTarget()
+                if found then
+                    lockedTarget = found
+                    lastTargetPos = found.Position
+                    lastUpdateTime = tick()
+                    btn.Text = "🔒 Locked"
+                    btn.BackgroundColor3 = Color3.fromRGB(180, 30, 30)
+                end
+            end
+        end)
+    end
+
+    AimlockToggle:OnChanged(function()
+        aimlockEnabled = Options.Aimlock.Value
+
+        if aimlockEnabled then
+            notify("Aimlock", "Enabled.")
+            lastTargetPos = nil; lastUpdateTime = nil
+
+            if isMobile and mobileLockButton then
+                mobileLockButton:FindFirstChildOfClass("TextButton").Visible = true
+            end
+
+            if not isMobile then
+                if inputConn then inputConn:Disconnect() end
+                inputConn = UserInputService.InputBegan:Connect(function(input, gp)
+                    if gp then return end
+                    if input.UserInputType ~= aimlockBind and input.KeyCode ~= aimlockBind then return end
+
+                    if lockedTarget then
+                        lockedTarget = nil; lastTargetPos = nil; lastUpdateTime = nil
+                        return
+                    end
+
+                    local found = findClosestTarget()
+                    if found then
+                        lockedTarget = found
+                        lastTargetPos = found.Position
+                        lastUpdateTime = tick()
+                    end
+                end)
+            end
+
+            if renderConn then renderConn:Disconnect() end
+            renderConn = RunService.RenderStepped:Connect(function()
+                if not lockedTarget or not lockedTarget.Parent then
+                    lockedTarget = nil; lastTargetPos = nil; lastUpdateTime = nil
+                    if isMobile and mobileLockButton then
+                        local btn = mobileLockButton:FindFirstChildOfClass("TextButton")
+                        if btn then btn.Text = "🎯 Lock"; btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30) end
+                    end
+                    return
+                end
+
+                local currentPos  = lockedTarget.Position
+                local currentTime = tick()
+                local predictedPos = currentPos
+
+                if lastTargetPos and lastUpdateTime then
+                    local dt = currentTime - lastUpdateTime
+                    if dt > 0 then
+                        local vel = (currentPos - lastTargetPos) / dt
+                        predictedPos = currentPos + vel * predict
+                    end
+                end
+
+                lastTargetPos  = currentPos
+                lastUpdateTime = currentTime
+
+                local currentLook = camera.CFrame.LookVector
+                local targetLook  = CFrame.new(camera.CFrame.Position, predictedPos).LookVector
+                local lerpedLook  = currentLook:Lerp(targetLook, smooth)
+                camera.CFrame = CFrame.new(camera.CFrame.Position, camera.CFrame.Position + lerpedLook)
+            end)
+        else
+            notify("Aimlock", "Disabled.")
+            lockedTarget = nil; lastTargetPos = nil; lastUpdateTime = nil
+            if inputConn then inputConn:Disconnect(); inputConn = nil end
+            if renderConn then renderConn:Disconnect(); renderConn = nil end
+            if isMobile and mobileLockButton then
+                local btn = mobileLockButton:FindFirstChildOfClass("TextButton")
+                if btn then
+                    btn.Visible = false
+                    btn.Text = "🎯 Lock"
+                    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+                end
+            end
+        end
+    end)
+
+    if not isMobile then
+        Tabs.Main:AddInput("AimlockBind", {
+            Title = "Aimlock Bind",
+            Default = "MouseButton3",
+            Placeholder = "e.g. Z, MouseButton3",
+            Finished = true,
+            Callback = function(text)
+                if typeof(text) ~= "string" or text == "" then
+                    aimlockBind = Enum.UserInputType.MouseButton3
+                    notify("Aimlock Bind", "Invalid — reverted to M3.")
+                    return
+                end
+                local formatted = text:gsub("%s+", "")
+                local ok1, key = pcall(function() return Enum.KeyCode[formatted] end)
+                if ok1 and key then aimlockBind = key; notify("Aimlock Bind", "Set: " .. key.Name); return end
+                local ok2, inputType = pcall(function() return Enum.UserInputType[formatted] end)
+                if ok2 and inputType then
+                    aimlockBind = inputType; notify("Aimlock Bind", "Set: " .. inputType.Name)
+                else
+                    aimlockBind = Enum.UserInputType.MouseButton3; notify("Aimlock Bind", "Invalid — reverted to M3.")
+                end
+            end
+        })
+    end
+
+    Tabs.Main:AddSlider("PredictionTime", {
+        Title = "Prediction Time",
+        Min = 0.25, Max = 0.75, Default = 0.65, Rounding = 2,
+        Callback = function(v) predict = v end
+    })
+
+    Tabs.Main:AddSlider("AimSmoothness", {
+        Title = "Aim Smoothness",
+        Min = 0.05, Max = 0.5, Default = 0.25, Rounding = 2,
+        Callback = function(v) smooth = v end
+    })
+end
+
+do
+    Tabs.Survivor:AddDropdown("GenMode", {
+        Title = "Generator Mode",
+        Values = {"Blatant", "Silent", "Custom"},
+        Default = "Blatant",
+        Callback = function(se)
+            mode = se
+            if autogen then notify("Auto Generator", "Mode: " .. mode) end
+        end
+    })
+
+    Tabs.Survivor:AddInput("GenDelay", {
+        Title = "Auto Generator Delay",
+        Default = "3",
+        Placeholder = "Seconds (Custom mode only)",
+        NumericOnly = true,
+        Finished = true,
+        Callback = function(v)
+            customdelay = tonumber(v) or 3
+            if customdelay < 0 then customdelay = 0 end
+        end
+    })
+
+    local AutoGenToggle = Tabs.Survivor:AddToggle("AutoGen", {
+        Title = "Auto Generator",
+        Default = false
+    })
+
+    AutoGenToggle:OnChanged(function()
+        autogen = Options.AutoGen.Value
+        if autogen then
+            notify("Auto Generator", "Enabled.")
+            if genconn then genconn:Disconnect() end
+            genconn = RunService.Heartbeat:Connect(function()
+                local gengui = lp.PlayerGui:FindFirstChild("Gen")
+                if gengui then
+                    if not firingconn then
+                        lastfiretime = tick()
+                        firingconn = RunService.Heartbeat:Connect(function()
+                            if not autogen then return end
+                            local now = tick()
+                            local delay = (mode == "Blatant") and 0 or (mode == "Silent") and 7 or customdelay
+                            if now - lastfiretime >= delay then
+                                pcall(function()
+                                    lp.PlayerGui.Gen.GeneratorMain.Event:FireServer(
+                                        { Wires = true, Switches = true, Lever = true }
+                                    )
+                                end)
+                                lastfiretime = now
+                            end
+                        end)
+                    end
+                else
+                    if firingconn then firingconn:Disconnect(); firingconn = nil end
+                    lastfiretime = 0
+                end
+            end)
+        else
+            notify("Auto Generator", "Disabled.")
+            if genconn then genconn:Disconnect(); genconn = nil end
+            if firingconn then firingconn:Disconnect(); firingconn = nil end
+            lastfiretime = 0
+        end
+    end)
+
+    local AutoBarricadeToggle = Tabs.Survivor:AddToggle("AutoBarricade", {
+        Title = "Auto Barricade",
+        Default = false
+    })
+
+    AutoBarricadeToggle:OnChanged(function()
+        dotEnabled = Options.AutoBarricade.Value
+        local gui = lp:WaitForChild("PlayerGui")
+        if dotEnabled then
+            if dotConn then dotConn:Disconnect() end
+            dotConn = RunService.RenderStepped:Connect(function()
+                local dot = gui:FindFirstChild("Dot")
+                if dot and dot:IsA("ScreenGui") then
+                    local container = dot:FindFirstChild("Container")
+                    if container then
+                        local frame = container:FindFirstChild("Frame")
+                        if frame and frame:IsA("GuiObject") then
+                            if not dot.Enabled then dot:Destroy(); return end
+                            frame.AnchorPoint = Vector2.new(0.5, 0.5)
+                            frame.Position = UDim2.new(0.5, 0, 0.5, 0)
+                        end
+                    end
+                end
+            end)
+            notify("Auto Barricade", "Enabled.")
+        else
+            if dotConn then dotConn:Disconnect() end
+            notify("Auto Barricade", "Disabled.")
+        end
+    end)
+
+    local InstantInteractToggle = Tabs.Survivor:AddToggle("InstantInteract", {
+        Title = "Instant Interact",
+        Default = false
+    })
+
+    InstantInteractToggle:OnChanged(function()
+        instantInteract = Options.InstantInteract.Value
+        if instantInteract then
+            notify("Instant Interact", "Enabled.")
+
+            local function applyToPrompts(obj)
+                for _, prompt in ipairs(obj:GetDescendants()) do
+                    if prompt:IsA("ProximityPrompt") then
+                        prompt.HoldDuration = (obj.Name == "FuseBox") and 0.05 or 0
+                    end
+                end
+            end
+
+            for _, obj in ipairs(workspace:GetDescendants()) do
+                if (obj.Name == "Generator" and obj:IsA("Model"))
+                    or (obj.Name == "Battery" and obj:IsA("MeshPart"))
+                    or (obj.Name == "FuseBox" and obj:IsA("Model")) then
+                    applyToPrompts(obj)
+                end
+            end
+
+            table.insert(promptConnections, workspace.DescendantAdded:Connect(function(desc)
+                if not instantInteract then return end
+                if desc:IsA("ProximityPrompt") then
+                    local ancestor = desc:FindFirstAncestor("Generator")
+                        or desc:FindFirstAncestor("Battery")
+                        or desc:FindFirstAncestor("FuseBox")
+                    if ancestor then
+                        desc.HoldDuration = (ancestor.Name == "FuseBox") and 0.75 or 0
+                    end
+                end
+            end))
+
+            local lastCheck = 0
+            table.insert(promptConnections, RunService.Heartbeat:Connect(function()
+                if not instantInteract then return end
+                if tick() - lastCheck < 0.8 then return end
+                lastCheck = tick()
+                local mapsFolder = workspace:FindFirstChild("MAPS")
+                local gameMap    = mapsFolder and mapsFolder:FindFirstChild("GAME MAP")
+                local tasks      = gameMap and gameMap:FindFirstChild("Tasks")
+                local fuseBoxes  = tasks and tasks:FindFirstChild("FuseBoxes")
+                if fuseBoxes then
+                    for _, fb in ipairs(fuseBoxes:GetChildren()) do
+                        if fb.Name == "FuseBox" then applyToPrompts(fb) end
+                    end
+                end
+            end))
+        else
+            notify("Instant Interact", "Disabled.")
+            for _, conn in ipairs(promptConnections) do if conn then conn:Disconnect() end end
+            promptConnections = {}
+        end
+    end)
+
+    local ViewKillerToggle = Tabs.Survivor:AddToggle("ViewKiller", {
+        Title = "View Killer",
+        Default = false
+    })
+
+    ViewKillerToggle:OnChanged(function()
+        viewKiller = Options.ViewKiller.Value
+        if viewKiller then
+            local function setKillerCamera(killerChar)
+                local hum = killerChar:FindFirstChildOfClass("Humanoid")
+                if hum then camera.CameraSubject = hum end
+            end
+            local pf = workspace:FindFirstChild("PLAYERS")
+            local killerFolder = pf and pf:FindFirstChild("KILLER")
+            if killerFolder then
+                local cur = killerFolder:GetChildren()[1]
+                if cur then setKillerCamera(cur) end
+                if killerAddedConn then killerAddedConn:Disconnect() end
+                killerAddedConn = killerFolder.ChildAdded:Connect(setKillerCamera)
+                if killerRemovedConn then killerRemovedConn:Disconnect() end
+                killerRemovedConn = killerFolder.ChildRemoved:Connect(function()
+                    if not viewKiller then return end
+                    local hum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
+                    if hum then camera.CameraSubject = hum end
+                end)
+            end
+            notify("View Killer", "Enabled.")
+        else
+            if killerAddedConn then killerAddedConn:Disconnect() end
+            if killerRemovedConn then killerRemovedConn:Disconnect() end
+            local hum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
+            if hum then camera.CameraSubject = hum end
+            notify("View Killer", "Disabled.")
+        end
+    end)
+
+    Tabs.Survivor:AddParagraph({
+        Title = "Auto Parry",
+        Content = "Watches nearby animators for attack frames and fires E automatically."
+    })
+
+    local AutoParryToggle = Tabs.Survivor:AddToggle("AutoParry", {
+        Title = "Auto Parry",
+        Default = false
+    })
+    local parryConnection = nil
+
+    AutoParryToggle:OnChanged(function()
+        getgenv().AutoParryEnabled = Options.AutoParry.Value
+
+        local attackIds = {
+            "rbxassetid://106673226682917",
+            "rbxassetid://112503015929213",
+            "rbxassetid://120428956410756",
+            "rbxassetid://133752270724243",
+        }
+
+        local function isAttackAnimation(track)
+            if not track or not track.Animation then return false end
+            for _, id in ipairs(attackIds) do
+                if track.Animation.AnimationId == id then return true end
+            end
+            return false
+        end
+
+        local function getParryRange(track)
+            if track and track.Animation
+                and track.Animation.AnimationId == "rbxassetid://133752270724243" then
+                return getgenv().PullAttackRange or 50
+            end
+            return getgenv().BasicAttackRange or 30
+        end
+
+        if getgenv().AutoParryEnabled then
+            notify("Auto Parry", "Enabled.")
+            if parryConnection then parryConnection:Disconnect() end
+            parryConnection = RunService.Heartbeat:Connect(function()
+                if not getgenv().AutoParryEnabled then return end
+                local currentChar = lp.Character
+                if not currentChar then return end
+                local myRoot = currentChar:FindFirstChild("HumanoidRootPart")
+                if not myRoot then return end
+
+                for _, plr in ipairs(game.Players:GetPlayers()) do
+                    if plr == lp then continue end
+                    local pchar = plr.Character
+                    if not pchar then continue end
+                    local attackerRoot = pchar:FindFirstChild("HumanoidRootPart")
+                    if not attackerRoot then continue end
+
+                    local distSq = (attackerRoot.Position - myRoot.Position):Dot(
+                        attackerRoot.Position - myRoot.Position
+                    )
+                    local defaultRange = getgenv().BasicAttackRange or 30
+                    if distSq > defaultRange * defaultRange then continue end
+
+                    local hum = pchar:FindFirstChildOfClass("Humanoid")
+                    if not hum then continue end
+                    local animator = hum:FindFirstChildOfClass("Animator")
+                    if not animator then continue end
+
+                    for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+                        if not track.IsPlaying or not isAttackAnimation(track) then continue end
+                        local range = getParryRange(track)
+                        if distSq > range * range then continue end
+                        local vim = game:GetService("VirtualInputManager")
+                        vim:SendKeyEvent(true,  Enum.KeyCode.E, false, game)
+                        task.wait()
+                        vim:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                        break
+                    end
+                end
+            end)
+        else
+            notify("Auto Parry", "Disabled.")
+            if parryConnection then parryConnection:Disconnect(); parryConnection = nil end
+        end
+    end)
+
+    Tabs.Survivor:AddSlider("MainAttacksRange", {
+        Title = "Main Attacks Range",
+        Min = 5, Max = 35, Default = 20, Rounding = 1,
+        Callback = function(v) getgenv().BasicAttackRange = v end
+    })
+
+    Tabs.Survivor:AddSlider("EnnardPullRange", {
+        Title = "Ennard Pull Attack Range",
+        Min = 5, Max = 60, Default = 50, Rounding = 1,
+        Callback = function(v) getgenv().PullAttackRange = v end
+    })
+end
+
+do
+    local roles = workspace:FindFirstChild("PLAYERS")
+
+    local DefaultColors = {
+        EspAlive  = Color3.fromRGB(0, 255, 0),
+        EspKiller = Color3.fromRGB(255, 0, 0),
+        EspLobby  = Color3.fromRGB(150, 150, 150),
+        EspGen    = Color3.fromRGB(0, 100, 255),
+    }
+
+    local function applyHighlight(target, color, controlOption)
+        if not target then return end
+        local existing = target:FindFirstChild("Highlight")
+
+        if not Options[controlOption] or not Options[controlOption].Value then
+            if existing then existing:Destroy() end
+            return
+        end
+
+        if existing then existing.FillColor = color; return end
+
+        local h = Instance.new("Highlight")
+        h.Name              = "Highlight"
+        h.FillColor         = color
+        h.OutlineColor      = Color3.fromRGB(255, 255, 255)
+        h.OutlineTransparency = 0
+        h.Adornee           = target
+        h.Parent            = target
+    end
+
+    local function getRoleOption(folderName)
+        if folderName == "ALIVE"  then return "EspAlive"  end
+        if folderName == "KILLER" then return "EspKiller" end
+        if folderName == "LOBBY"  then return "EspLobby"  end
+        return nil
+    end
+
+    local function updatePlayerESP(obj)
+        if not roles then return end
+        local player = game.Players:FindFirstChild(obj.Name)
+        if not player or player == lp then return end
+        local folderName = obj.Parent and obj.Parent.Name
+        local toggleOpt  = getRoleOption(folderName)
+        if not toggleOpt then return end
+        local character = player.Character
+        if character and character.Parent then
+            if Options[toggleOpt] and Options[toggleOpt].Value then
+                applyHighlight(character, DefaultColors[toggleOpt], toggleOpt)
+            else
+                local existing = character:FindFirstChild("Highlight")
+                if existing then existing:Destroy() end
+            end
+        end
+    end
+
+    local function refreshAllPlayers()
+        if not roles then return end
+        for _, obj in ipairs(roles:GetDescendants()) do updatePlayerESP(obj) end
+    end
+
+    local EspAliveToggle = Tabs.ESP:AddToggle("EspAlive", { Title = "Show Alive Players", Default = false })
+    EspAliveToggle:OnChanged(refreshAllPlayers)
+
+    local EspKillerToggle = Tabs.ESP:AddToggle("EspKiller", { Title = "Show Killers", Default = false })
+    EspKillerToggle:OnChanged(refreshAllPlayers)
+
+    local EspLobbyToggle = Tabs.ESP:AddToggle("EspLobby", { Title = "Show Lobby Players", Default = false })
+    EspLobbyToggle:OnChanged(refreshAllPlayers)
+
+    if roles then
+        roles.DescendantAdded:Connect(function(obj)
+            task.wait(0.1); updatePlayerESP(obj)
+        end)
+        for _, folder in ipairs(roles:GetChildren()) do
+            folder.ChildAdded:Connect(function(obj)
+                task.wait(0.1); updatePlayerESP(obj)
+            end)
+            folder.ChildRemoved:Connect(function(obj)
+                local player = game.Players:FindFirstChild(obj.Name)
+                if player and player.Character then
+                    local existing = player.Character:FindFirstChild("Highlight")
+                    if existing then existing:Destroy() end
+                end
+            end)
+        end
+    end
+
+    local function updateGenESP(gen)
+        if not gen or gen.Name ~= "Generator" then return end
+        local existing = gen:FindFirstChild("Highlight")
+        if not Options.EspGen or not Options.EspGen.Value or isGeneratorComplete(gen) then
+            if existing then existing:Destroy() end
+            return
+        end
+        applyHighlight(gen, DefaultColors.EspGen, "EspGen")
+    end
+
+    local function refreshAllGenerators()
+        local mapsFolder = workspace:FindFirstChild("MAPS")
+        local gameMap    = mapsFolder and mapsFolder:FindFirstChild("GAME MAP")
+        local tasks      = gameMap and gameMap:FindFirstChild("Tasks")
+        local gens       = tasks and tasks:FindFirstChild("Generators")
+        if gens then for _, gen in ipairs(gens:GetChildren()) do updateGenESP(gen) end end
+    end
+
+    local EspGenToggle = Tabs.ESP:AddToggle("EspGen", { Title = "Show Generators", Default = false })
+    EspGenToggle:OnChanged(refreshAllGenerators)
+
+    task.spawn(function()
+        while true do
+            local mapsFolder = workspace:FindFirstChild("MAPS")
+            local gameMap    = mapsFolder and mapsFolder:FindFirstChild("GAME MAP")
+            local tasks      = gameMap and gameMap:FindFirstChild("Tasks")
+            local gens       = tasks and tasks:FindFirstChild("Generators")
+            if gens then
+                gens.ChildAdded:Connect(function(gen)
+                    task.wait(0.1)
+                    updateGenESP(gen)
+                    gen:GetAttributeChangedSignal("Progress"):Connect(function() updateGenESP(gen) end)
+                end)
+                for _, gen in ipairs(gens:GetChildren()) do
+                    updateGenESP(gen)
+                    gen:GetAttributeChangedSignal("Progress"):Connect(function() updateGenESP(gen) end)
+                end
+                break
+            end
+            task.wait(1)
+        end
+    end)
+end
+
+do
+    local originalLighting = {
+        Brightness     = Lighting.Brightness,
+        ClockTime      = Lighting.ClockTime,
+        Ambient        = Lighting.Ambient,
+        OutdoorAmbient = Lighting.OutdoorAmbient,
+        GlobalShadows  = Lighting.GlobalShadows,
+        FogEnd         = Lighting.FogEnd
+    }
+
+    task.spawn(function()
+        while true do
+            if not Options.FullBright or not Options.FullBright.Value then
+                originalLighting.Brightness     = Lighting.Brightness
+                originalLighting.ClockTime      = Lighting.ClockTime
+                originalLighting.Ambient        = Lighting.Ambient
+                originalLighting.OutdoorAmbient = Lighting.OutdoorAmbient
+                originalLighting.GlobalShadows  = Lighting.GlobalShadows
+            end
+            if not Options.NoFog or not Options.NoFog.Value then
+                originalLighting.FogEnd = Lighting.FogEnd
+            end
+            task.wait(2)
+        end
+    end)
+
+    local FullBrightToggle = Tabs.Environment:AddToggle("FullBright", { Title = "Fullbright", Default = false })
+    FullBrightToggle:OnChanged(function()
+        if Options.FullBright.Value then
+            Lighting.Brightness     = 5
+            Lighting.ClockTime      = 14
+            Lighting.Ambient        = Color3.fromRGB(255, 255, 255)
+            Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+            Lighting.GlobalShadows  = false
+        else
+            Lighting.Brightness     = originalLighting.Brightness
+            Lighting.ClockTime      = originalLighting.ClockTime
+            Lighting.Ambient        = originalLighting.Ambient
+            Lighting.OutdoorAmbient = originalLighting.OutdoorAmbient
+            Lighting.GlobalShadows  = originalLighting.GlobalShadows
+        end
+    end)
+
+    local NoFogToggle = Tabs.Environment:AddToggle("NoFog", { Title = "No Fog", Default = false })
+    NoFogToggle:OnChanged(function()
+        Lighting.FogEnd = Options.NoFog.Value and 1e9 or originalLighting.FogEnd
+    end)
+end
+
+SaveManager:SetLibrary(Fluent)
+InterfaceManager:SetLibrary(Fluent)
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({})
+InterfaceManager:SetFolder("FluentScriptHub")
+SaveManager:SetFolder("FluentScriptHub/bite-by-night")
+
+InterfaceManager:BuildInterfaceSection(Tabs.Settings)
+SaveManager:BuildConfigSection(Tabs.Settings)
+
+Window:SelectTab(1)
+
+Fluent:Notify({ Title = "Synth Hub", Content = "Loaded", Duration = 5 })
+
+SaveManager:LoadAutoloadConfig()
 else
     warn("We do not support this game. In case you're in Dandy's World lobby, please join a match so it works.")
 end
