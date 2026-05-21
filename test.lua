@@ -6205,7 +6205,6 @@ SaveManager:BuildConfigSection(Tabs["UI Settings"])
 ThemeManager:ApplyToTab(Tabs["UI Settings"])
 SaveManager:LoadAutoloadConfig()
 elseif currentID == 142823291 then
-
 -- // SERVICES & VARIABLES \\ --
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -6274,36 +6273,32 @@ local ESPBox = Tabs.Visuals:AddLeftGroupbox("Role ESP")
 local EnvironmentBox = Tabs.Visuals:AddRightGroupbox("Environment")
 
 -- // MISC FEATURES \\ --
-MiscBox:AddToggle("SecondLife", {
-    Text = "Second Life",
-    Default = false
-})
+MiscBox:AddToggle("SecondLife", { Text = "Second Life", Default = false })
 
-local lp = game.Players.LocalPlayer
+local function HookSecondLife(char)
+    local hum = char:WaitForChild("Humanoid", 5)
+    if not hum then return end
 
-local function HookCharacter(char)
-    local hum = char:WaitForChild("Humanoid")
-
-    local used = false
-
-    hum.HealthChanged:Connect(function()
-        if not Toggles.SecondLife.Value then
-            return
-        end
-
-        -- only trigger once, right before death
-        if not used and hum.Health <= 0 then
-            used = true
+    hum.HealthChanged:Connect(function(health)
+        if Toggles.SecondLife.Value and health < hum.MaxHealth and hum.Health > 0 then
             hum.Health = hum.MaxHealth
+        end
+    end)
+
+    task.spawn(function()
+        while char.Parent and hum.Parent do
+            if Toggles.SecondLife.Value and hum.Health < hum.MaxHealth and hum.Health > 0 then
+                hum.Health = hum.MaxHealth
+            end
+            task.wait(0.1)
         end
     end)
 end
 
 if lp.Character then
-    HookCharacter(lp.Character)
+    task.spawn(HookSecondLife, lp.Character)
 end
-
-lp.CharacterAdded:Connect(HookCharacter)
+lp.CharacterAdded:Connect(HookSecondLife)
 
 MiscBox:AddDivider()
 
@@ -6446,8 +6441,15 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
+-- // COMBAT FEATURES (AUTO KILL ALL) \\ --
 CombatBox:AddDivider()
 CombatBox:AddToggle("AutoKillAll", { Text = "Auto Kill All", Default = false })
+
+local killedThisRound = {}
+
+lp.CharacterAdded:Connect(function()
+    killedThisRound = {}
+end)
 
 local function doClicks()
     Vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
@@ -6469,41 +6471,40 @@ task.spawn(function()
                     end
 
                     for _, v in pairs(Players:GetPlayers()) do
-                        if v ~= lp and v.Character and v.Character:FindFirstChild("HumanoidRootPart") and v.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
-                            local targetChar = v.Character
-                            local targetHrp = targetChar.HumanoidRootPart
-                            local affectedParts = {}
+                        if v == lp then continue end
+                        if killedThisRound[v.UserId] then continue end
+                        if not v.Character then continue end
+                        local targetHum = v.Character:FindFirstChildOfClass("Humanoid")
+                        if not targetHum or targetHum.Health <= 0 then continue end
+                        local targetHrp = v.Character:FindFirstChild("HumanoidRootPart")
+                        if not targetHrp then continue end
 
-                            for _, part in pairs(targetChar:GetChildren()) do
-                                if part:IsA("BasePart") then
-                                    local oldCollide = part.CanCollide
-                                    local oldTouch = part.CanTouch
-                                    part.CanCollide = false
-                                    part.CanTouch = false
-                                    part.AssemblyLinearVelocity = Vector3.zero
-                                    part.AssemblyAngularVelocity = Vector3.zero
-                                    table.insert(affectedParts, { part = part, oldCollide = oldCollide, oldTouch = oldTouch })
-                                end
+                        killedThisRound[v.UserId] = true
+
+                        local localParts = {}
+                        for _, part in pairs(char:GetDescendants()) do
+                            if part:IsA("BasePart") then
+                                local old = part.CanCollide
+                                part.CanCollide = false
+                                table.insert(localParts, { part = part, old = old })
                             end
+                        end
 
-                            task.spawn(function()
-                                task.wait(10)
-                                for _, data in pairs(affectedParts) do
-                                    if data.part and data.part.Parent then
-                                        data.part.CanCollide = data.oldCollide
-                                        data.part.CanTouch = data.oldTouch
-                                    end
-                                end
-                            end)
+                        targetHrp.CFrame = hrp.CFrame * CFrame.new(0, 0, -3)
+                        targetHrp.AssemblyLinearVelocity = Vector3.zero
+                        targetHrp.AssemblyAngularVelocity = Vector3.zero
 
-                            targetHrp.CFrame = hrp.CFrame * CFrame.new(0, 0, -3)
-                            targetHrp.AssemblyLinearVelocity = Vector3.zero
-                            targetHrp.AssemblyAngularVelocity = Vector3.zero
+                        doClicks()
+                        task.wait(0.05)
 
-                            doClicks()
-                            task.wait(0.05)
+                        for _, data in pairs(localParts) do
+                            if data.part and data.part.Parent then
+                                data.part.CanCollide = data.old
+                            end
                         end
                     end
+                else
+                    killedThisRound = {}
                 end
             end
         end
