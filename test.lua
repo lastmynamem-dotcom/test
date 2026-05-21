@@ -6991,24 +6991,26 @@ lp.CharacterAdded:Connect(function(newChar)
     hrp = newChar:WaitForChild("HumanoidRootPart")
 end)
 
+local function isInFolder(folderName)
+    local currentChar = lp.Character
+    if not currentChar then return false end
+    local pf = workspace:FindFirstChild("PLAYERS")
+    if not pf then return false end
+    local folder = pf:FindFirstChild(folderName)
+    if not folder then return false end
+    return currentChar.Parent == folder
+end
+
 local oldNamecall
 oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     local method = getnamecallmethod()
     if method == "FireServer" and tostring(self) == "Movement" then
-        return
+        if isInFolder("ALIVE") then
+            return
+        end
     end
     return oldNamecall(self, ...)
 end))
-
-local function fireEvent()
-    local genGui = lp.PlayerGui:FindFirstChild("Gen")
-    if not genGui then return end
-    local genMain = genGui:FindFirstChild("GeneratorMain")
-    if not genMain then return end
-    local genEvent = genMain:FindFirstChild("Event")
-    if not genEvent then return end
-    genEvent:FireServer({ Wires = true, Switches = true, Lever = true })
-end
 
 local function isGeneratorComplete(gen)
     local progress = gen:GetAttribute("Progress")
@@ -7016,11 +7018,7 @@ local function isGeneratorComplete(gen)
 end
 
 local function isPlayerAlive()
-    local playersFolder = workspace:FindFirstChild("PLAYERS")
-    if not playersFolder then return false end
-    local aliveFolder = playersFolder:FindFirstChild("ALIVE")
-    if not aliveFolder then return false end
-    return char and char.Parent == aliveFolder
+    return isInFolder("ALIVE")
 end
 
 local Window = Fluent:CreateWindow({
@@ -7034,11 +7032,11 @@ local Window = Fluent:CreateWindow({
 })
 
 local Tabs = {
-    Main      = Window:AddTab({ Title = "Main",        Icon = "home"     }),
-    Survivor  = Window:AddTab({ Title = "Survivor",    Icon = "shield"   }),
-    ESP       = Window:AddTab({ Title = "ESP",         Icon = "eye"      }),
-    Environment = Window:AddTab({ Title = "Environment", Icon = "sun"    }),
-    Settings  = Window:AddTab({ Title = "Settings",    Icon = "settings" })
+    Main        = Window:AddTab({ Title = "Main",        Icon = "home"     }),
+    Survivor    = Window:AddTab({ Title = "Survivor",    Icon = "shield"   }),
+    ESP         = Window:AddTab({ Title = "ESP",         Icon = "eye"      }),
+    Environment = Window:AddTab({ Title = "Environment", Icon = "sun"      }),
+    Settings    = Window:AddTab({ Title = "Settings",    Icon = "settings" })
 }
 
 local Options = Fluent.Options
@@ -7057,7 +7055,8 @@ local predict        = 0.65
 local smooth         = 0.25
 
 local autogen        = false
-local genconn, firingconn = nil, nil
+local genconn        = nil
+local firingconn     = nil
 local lastfiretime   = 0
 local mode           = "Blatant"
 local customdelay    = 3
@@ -7076,30 +7075,92 @@ getgenv().AutoParryEnabled  = false
 getgenv().BasicAttackRange  = 20
 getgenv().PullAttackRange   = 50
 
+local flightEnabled  = false
+local flightConn     = nil
+local flightBody     = nil
+local flightCharConn = nil
+local FLIGHT_SPEED   = 50
+
+local walkspeedEnabled  = false
+local walkspeedCharConn = nil
+local customWalkspeed   = 16
+
 local function notify(title, content)
     Fluent:Notify({ Title = title, Content = content, Duration = 4 })
 end
 
+local function applyStamina()
+    if Options.InfStamina and Options.InfStamina.Value then
+        if char and char.Parent then
+            char:SetAttribute("Stamina", 100)
+            char:SetAttribute("MaxStamina", 100)
+        end
+        if lp then lp:SetAttribute("Stamina", 100) end
+    end
+end
+
 do
     local StaminaConnection = nil
+    local StaminaCharConn   = nil
+    local StaminaTimerConn  = nil
+
     local StaminaToggle = Tabs.Main:AddToggle("InfStamina", { Title = "Infinite Stamina", Default = false })
+
+    local function startStaminaLoop()
+        if StaminaConnection then StaminaConnection:Disconnect() end
+        StaminaConnection = RunService.Heartbeat:Connect(function()
+            if Options.InfStamina and Options.InfStamina.Value then
+                applyStamina()
+            else
+                if StaminaConnection then StaminaConnection:Disconnect(); StaminaConnection = nil end
+            end
+        end)
+    end
+
+    local function watchStaminaTimer()
+        if StaminaTimerConn then StaminaTimerConn:Disconnect() end
+        local g = workspace:FindFirstChild("GAME")
+        if not g then return end
+        local timer = g:FindFirstChild("TIMER")
+        if not timer then return end
+        StaminaTimerConn = timer:GetPropertyChangedSignal("Value"):Connect(function()
+            if Options.InfStamina and Options.InfStamina.Value then
+                if timer.Value <= 60 then
+                    applyStamina()
+                    startStaminaLoop()
+                end
+            end
+        end)
+    end
 
     StaminaToggle:OnChanged(function()
         if Options.InfStamina.Value then
-            if StaminaConnection then StaminaConnection:Disconnect() end
-            StaminaConnection = RunService.Heartbeat:Connect(function()
+            startStaminaLoop()
+
+            if StaminaCharConn then StaminaCharConn:Disconnect() end
+            StaminaCharConn = lp.CharacterAdded:Connect(function(newChar)
+                task.wait(0.5)
+                char = newChar
                 if Options.InfStamina and Options.InfStamina.Value then
-                    if char and char.Parent then
-                        char:SetAttribute("Stamina", 100)
-                        char:SetAttribute("MaxStamina", 100)
-                    end
-                    if lp then lp:SetAttribute("Stamina", 100) end
-                else
-                    if StaminaConnection then StaminaConnection:Disconnect(); StaminaConnection = nil end
+                    newChar:SetAttribute("Stamina", 100)
+                    newChar:SetAttribute("MaxStamina", 100)
+                end
+                startStaminaLoop()
+                watchStaminaTimer()
+            end)
+
+            watchStaminaTimer()
+
+            task.spawn(function()
+                while Options.InfStamina and Options.InfStamina.Value do
+                    watchStaminaTimer()
+                    task.wait(3)
                 end
             end)
         else
             if StaminaConnection then StaminaConnection:Disconnect(); StaminaConnection = nil end
+            if StaminaCharConn   then StaminaCharConn:Disconnect();   StaminaCharConn   = nil end
+            if StaminaTimerConn  then StaminaTimerConn:Disconnect();  StaminaTimerConn  = nil end
         end
     end)
 
@@ -7176,6 +7237,224 @@ do
         end
     end)
 
+    local function cleanupFlight()
+        if flightConn then flightConn:Disconnect(); flightConn = nil end
+        if flightBody then
+            pcall(function() flightBody:Destroy() end)
+            flightBody = nil
+        end
+        local currentChar = lp.Character
+        if currentChar then
+            local hum = currentChar:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.PlatformStand = false
+            end
+            local root = currentChar:FindFirstChild("HumanoidRootPart")
+            if root then
+                local old = root:FindFirstChild("FlightVelocity")
+                if old then old:Destroy() end
+            end
+        end
+    end
+
+    local function startFlight()
+        cleanupFlight()
+        local currentChar = lp.Character
+        if not currentChar then return end
+        local root = currentChar:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+        local hum = currentChar:FindFirstChildOfClass("Humanoid")
+        if not hum then return end
+
+        hum.PlatformStand = true
+
+        local bv = Instance.new("BodyVelocity")
+        bv.Name = "FlightVelocity"
+        bv.Velocity = Vector3.zero
+        bv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+        bv.Parent = root
+        flightBody = bv
+
+        flightConn = RunService.Heartbeat:Connect(function()
+            if not flightEnabled or not Options.Flight or not Options.Flight.Value then return end
+            local r = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+            if not r or not bv or not bv.Parent then return end
+
+            local vel = Vector3.zero
+            local cf  = camera.CFrame
+
+            if isMobile then
+                local ts = game:GetService("TextService")
+                _ = ts
+                local move = UserInputService:GetMouseDelta()
+                _ = move
+                local thumbstick = UserInputService:GetNavigationGamepads()
+                _ = thumbstick
+            end
+
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then vel = vel + cf.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then vel = vel - cf.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then vel = vel - cf.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then vel = vel + cf.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then vel = vel + Vector3.new(0, 1, 0) end
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then vel = vel - Vector3.new(0, 1, 0) end
+
+            if isMobile then
+                local mv = UserInputService:GetMouseDelta()
+                _ = mv
+                local state = UserInputService:GetGamepadState(Enum.UserInputType.Gamepad1)
+                for _, inp in ipairs(state) do
+                    if inp.KeyCode == Enum.KeyCode.Thumbstick1 then
+                        local x = inp.Position.X
+                        local y = inp.Position.Y
+                        if math.abs(x) > 0.1 or math.abs(y) > 0.1 then
+                            vel = vel + (cf.LookVector * y + cf.RightVector * x)
+                        end
+                    end
+                end
+            end
+
+            if vel.Magnitude > 0 then
+                bv.Velocity = vel.Unit * FLIGHT_SPEED
+            else
+                bv.Velocity = Vector3.zero
+            end
+        end)
+    end
+
+    local FlightToggle = Tabs.Main:AddToggle("Flight", {
+        Title = "Flight",
+        Default = false
+    })
+
+    FlightToggle:OnChanged(function()
+        flightEnabled = Options.Flight.Value
+        if flightEnabled then
+            startFlight()
+
+            if flightCharConn then flightCharConn:Disconnect() end
+            flightCharConn = lp.CharacterAdded:Connect(function(newChar)
+                char = newChar
+                task.wait(0.5)
+                if Options.Flight and Options.Flight.Value then
+                    startFlight()
+                end
+            end)
+
+            notify("Flight", "Enabled. WASD/Space/Shift to fly.")
+        else
+            cleanupFlight()
+            if flightCharConn then flightCharConn:Disconnect(); flightCharConn = nil end
+            notify("Flight", "Disabled.")
+        end
+    end)
+
+    Tabs.Main:AddSlider("FlightSpeed", {
+        Title = "Flight Speed",
+        Min = 10, Max = 200, Default = 50, Rounding = 0,
+        Callback = function(v) FLIGHT_SPEED = v end
+    })
+
+    local function applyWalkspeed(sp)
+        local currentChar = lp.Character
+        if not currentChar then return end
+        local hum = currentChar:FindFirstChildOfClass("Humanoid")
+        if hum then hum.WalkSpeed = sp end
+    end
+
+    local WalkspeedToggle = Tabs.Main:AddToggle("CustomWalkspeed", {
+        Title = "Custom Walkspeed",
+        Default = false
+    })
+
+    Tabs.Main:AddSlider("WalkspeedValue", {
+        Title = "Walkspeed",
+        Min = 1, Max = 100, Default = 16, Rounding = 0,
+        Callback = function(v)
+            customWalkspeed = v
+            if Options.CustomWalkspeed and Options.CustomWalkspeed.Value then
+                applyWalkspeed(customWalkspeed)
+            end
+        end
+    })
+
+    WalkspeedToggle:OnChanged(function()
+        walkspeedEnabled = Options.CustomWalkspeed.Value
+        if walkspeedEnabled then
+            applyWalkspeed(customWalkspeed)
+
+            if walkspeedCharConn then walkspeedCharConn:Disconnect() end
+            walkspeedCharConn = lp.CharacterAdded:Connect(function(newChar)
+                char = newChar
+                task.wait(0.5)
+                if Options.CustomWalkspeed and Options.CustomWalkspeed.Value then
+                    applyWalkspeed(customWalkspeed)
+                end
+            end)
+
+            notify("Custom Walkspeed", "Enabled. Speed: " .. customWalkspeed)
+        else
+            applyWalkspeed(16)
+            if walkspeedCharConn then walkspeedCharConn:Disconnect(); walkspeedCharConn = nil end
+            notify("Custom Walkspeed", "Disabled. Reset to 16.")
+        end
+    end)
+
+    if isMobile then
+        local mobileFlightGui = Instance.new("ScreenGui")
+        mobileFlightGui.Name = "FlightMobileControls"
+        mobileFlightGui.ResetOnSpawn = false
+        mobileFlightGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        mobileFlightGui.Parent = lp.PlayerGui
+
+        local function makeFlightBtn(text, xPos, yPos, onHold)
+            local btn = Instance.new("TextButton")
+            btn.Size = UDim2.fromOffset(64, 64)
+            btn.Position = UDim2.new(xPos, 0, yPos, 0)
+            btn.AnchorPoint = Vector2.new(0.5, 0.5)
+            btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+            btn.BackgroundTransparency = 0.35
+            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            btn.Font = Enum.Font.GothamBold
+            btn.TextSize = 14
+            btn.Text = text
+            btn.Visible = false
+            btn.Parent = mobileFlightGui
+            local corner = Instance.new("UICorner")
+            corner.CornerRadius = UDim.new(0, 10)
+            corner.Parent = btn
+
+            local held = false
+            btn.MouseButton1Down:Connect(function() held = true end)
+            btn.MouseButton1Up:Connect(function() held = false end)
+            btn.TouchStart:Connect(function() held = true end)
+            btn.TouchEnd:Connect(function() held = false end)
+
+            return btn, function() return held end
+        end
+
+        local btnUp,   isUpHeld   = makeFlightBtn("UP",   0.85, 0.55, nil)
+        local btnDown, isDownHeld = makeFlightBtn("DN",   0.85, 0.70, nil)
+
+        FlightToggle:OnChanged(function()
+            local visible = Options.Flight and Options.Flight.Value
+            btnUp.Visible   = visible
+            btnDown.Visible = visible
+        end)
+
+        RunService.Heartbeat:Connect(function()
+            if not flightEnabled or not flightBody or not flightBody.Parent then return end
+            local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+            if not root then return end
+            local extra = Vector3.zero
+            if isUpHeld()   then extra = extra + Vector3.new(0, 1, 0) end
+            if isDownHeld() then extra = extra - Vector3.new(0, 1, 0) end
+            if extra.Magnitude > 0 then
+                flightBody.Velocity = flightBody.Velocity + extra * FLIGHT_SPEED * 0.1
+            end
+        end)
+    end
+
     Tabs.Main:AddParagraph({
         Title = "Aimlock Configuration",
         Content = isMobile
@@ -7245,7 +7524,7 @@ do
         btn.TextColor3 = Color3.fromRGB(255, 255, 255)
         btn.Font = Enum.Font.GothamBold
         btn.TextSize = 13
-        btn.Text = "🎯 Lock"
+        btn.Text = "Lock"
         btn.Visible = false
         btn.Parent = mobileLockButton
 
@@ -7256,7 +7535,7 @@ do
         btn.MouseButton1Click:Connect(function()
             if lockedTarget then
                 lockedTarget = nil; lastTargetPos = nil; lastUpdateTime = nil
-                btn.Text = "🎯 Lock"
+                btn.Text = "Lock"
                 btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
             else
                 local found = findClosestTarget()
@@ -7264,7 +7543,7 @@ do
                     lockedTarget = found
                     lastTargetPos = found.Position
                     lastUpdateTime = tick()
-                    btn.Text = "🔒 Locked"
+                    btn.Text = "Locked"
                     btn.BackgroundColor3 = Color3.fromRGB(180, 30, 30)
                 end
             end
@@ -7308,7 +7587,7 @@ do
                     lockedTarget = nil; lastTargetPos = nil; lastUpdateTime = nil
                     if isMobile and mobileLockButton then
                         local btn = mobileLockButton:FindFirstChildOfClass("TextButton")
-                        if btn then btn.Text = "🎯 Lock"; btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30) end
+                        if btn then btn.Text = "Lock"; btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30) end
                     end
                     return
                 end
@@ -7342,7 +7621,7 @@ do
                 local btn = mobileLockButton:FindFirstChildOfClass("TextButton")
                 if btn then
                     btn.Visible = false
-                    btn.Text = "🎯 Lock"
+                    btn.Text = "Lock"
                     btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
                 end
             end
@@ -7420,7 +7699,14 @@ do
         if autogen then
             notify("Auto Generator", "Enabled.")
             if genconn then genconn:Disconnect() end
-            genconn = RunService.Heartbeat:Connect(function()
+            if firingconn then firingconn:Disconnect(); firingconn = nil end
+
+            local genPollInterval = 0
+            genconn = RunService.Heartbeat:Connect(function(dt)
+                genPollInterval = genPollInterval + dt
+                if genPollInterval < 0.5 then return end
+                genPollInterval = 0
+
                 local gengui = lp.PlayerGui:FindFirstChild("Gen")
                 if gengui then
                     if not firingconn then
@@ -7446,7 +7732,7 @@ do
             end)
         else
             notify("Auto Generator", "Disabled.")
-            if genconn then genconn:Disconnect(); genconn = nil end
+            if genconn   then genconn:Disconnect();   genconn   = nil end
             if firingconn then firingconn:Disconnect(); firingconn = nil end
             lastfiretime = 0
         end
@@ -7462,7 +7748,11 @@ do
         local gui = lp:WaitForChild("PlayerGui")
         if dotEnabled then
             if dotConn then dotConn:Disconnect() end
-            dotConn = RunService.RenderStepped:Connect(function()
+            local dotThrottle = 0
+            dotConn = RunService.Heartbeat:Connect(function(dt)
+                dotThrottle = dotThrottle + dt
+                if dotThrottle < 0.05 then return end
+                dotThrottle = 0
                 local dot = gui:FindFirstChild("Dot")
                 if dot and dot:IsA("ScreenGui") then
                     local container = dot:FindFirstChild("Container")
@@ -7478,7 +7768,7 @@ do
             end)
             notify("Auto Barricade", "Enabled.")
         else
-            if dotConn then dotConn:Disconnect() end
+            if dotConn then dotConn:Disconnect(); dotConn = nil end
             notify("Auto Barricade", "Disabled.")
         end
     end)
@@ -7516,7 +7806,7 @@ do
                         or desc:FindFirstAncestor("Battery")
                         or desc:FindFirstAncestor("FuseBox")
                     if ancestor then
-                        desc.HoldDuration = (ancestor.Name == "FuseBox") and 0.75 or 0
+                        desc.HoldDuration = (ancestor.Name == "FuseBox") and 0.05 or 0
                     end
                 end
             end))
@@ -7589,6 +7879,7 @@ do
         Default = false
     })
     local parryConnection = nil
+    local parryCooldown = false
 
     AutoParryToggle:OnChanged(function()
         getgenv().AutoParryEnabled = Options.AutoParry.Value
@@ -7621,6 +7912,7 @@ do
             if parryConnection then parryConnection:Disconnect() end
             parryConnection = RunService.Heartbeat:Connect(function()
                 if not getgenv().AutoParryEnabled then return end
+                if parryCooldown then return end
                 local currentChar = lp.Character
                 if not currentChar then return end
                 local myRoot = currentChar:FindFirstChild("HumanoidRootPart")
@@ -7648,10 +7940,13 @@ do
                         if not track.IsPlaying or not isAttackAnimation(track) then continue end
                         local range = getParryRange(track)
                         if distSq > range * range then continue end
+                        parryCooldown = true
                         local vim = game:GetService("VirtualInputManager")
                         vim:SendKeyEvent(true,  Enum.KeyCode.E, false, game)
-                        task.wait()
+                        task.wait(0.1)
                         vim:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                        task.wait(0.4)
+                        parryCooldown = false
                         break
                     end
                 end
@@ -7659,6 +7954,7 @@ do
         else
             notify("Auto Parry", "Disabled.")
             if parryConnection then parryConnection:Disconnect(); parryConnection = nil end
+            parryCooldown = false
         end
     end)
 
@@ -7673,16 +7969,115 @@ do
         Min = 5, Max = 60, Default = 50, Rounding = 1,
         Callback = function(v) getgenv().PullAttackRange = v end
     })
+
+    local autoEscapeConn      = nil
+    local autoEscapeCharConn  = nil
+    local autoEscapeTimerConn = nil
+    local escapeThrottle      = 0
+
+    local function doAutoEscape()
+        if not isPlayerAlive() then return end
+        local mapsFolder = workspace:FindFirstChild("MAPS")
+        local gameMap    = mapsFolder and mapsFolder:FindFirstChild("GAME MAP")
+        if not gameMap then return end
+        local escapes = gameMap:FindFirstChild("Escapes")
+        if not escapes then return end
+        local ep = escapes:FindFirstChild("EscapePoint")
+        if ep then
+            local currentChar = lp.Character
+            if currentChar then
+                local root = currentChar:FindFirstChild("HumanoidRootPart")
+                if root then
+                    local targetCF = ep:IsA("BasePart") and ep.CFrame
+                        or (ep:IsA("Model") and ep.PrimaryPart and ep.PrimaryPart.CFrame)
+                    if targetCF then
+                        root.CFrame = targetCF + Vector3.new(0, 3, 0)
+                    end
+                end
+            end
+        end
+    end
+
+    local function watchEscapeTimer()
+        if autoEscapeTimerConn then autoEscapeTimerConn:Disconnect() end
+        local g = workspace:FindFirstChild("GAME")
+        if not g then return end
+        local timer = g:FindFirstChild("TIMER")
+        if not timer then return end
+        autoEscapeTimerConn = timer:GetPropertyChangedSignal("Value"):Connect(function()
+            if Options.AutoEscape and Options.AutoEscape.Value then
+                if timer.Value <= 60 then
+                    doAutoEscape()
+                end
+            end
+        end)
+    end
+
+    local function startEscapeWatcher()
+        if autoEscapeConn then autoEscapeConn:Disconnect() end
+        autoEscapeConn = RunService.Heartbeat:Connect(function(dt)
+            if not Options.AutoEscape or not Options.AutoEscape.Value then return end
+            escapeThrottle = escapeThrottle + dt
+            if escapeThrottle < 1 then return end
+            escapeThrottle = 0
+            if not isPlayerAlive() then return end
+            local mapsFolder = workspace:FindFirstChild("MAPS")
+            local gameMap    = mapsFolder and mapsFolder:FindFirstChild("GAME MAP")
+            if not gameMap then return end
+            local escapes = gameMap:FindFirstChild("Escapes")
+            if not escapes then return end
+            local ep = escapes:FindFirstChild("EscapePoint")
+            if ep then doAutoEscape() end
+        end)
+    end
+
+    local AutoEscapeToggle = Tabs.Survivor:AddToggle("AutoEscape", {
+        Title = "Auto Escape",
+        Default = false
+    })
+
+    AutoEscapeToggle:OnChanged(function()
+        if Options.AutoEscape.Value then
+            notify("Auto Escape", "Enabled.")
+            escapeThrottle = 0
+            startEscapeWatcher()
+            watchEscapeTimer()
+
+            if autoEscapeCharConn then autoEscapeCharConn:Disconnect() end
+            autoEscapeCharConn = lp.CharacterAdded:Connect(function(newChar)
+                char = newChar
+                task.wait(0.5)
+                if Options.AutoEscape and Options.AutoEscape.Value then
+                    escapeThrottle = 0
+                    startEscapeWatcher()
+                    watchEscapeTimer()
+                end
+            end)
+
+            task.spawn(function()
+                while Options.AutoEscape and Options.AutoEscape.Value do
+                    watchEscapeTimer()
+                    task.wait(3)
+                end
+            end)
+        else
+            notify("Auto Escape", "Disabled.")
+            if autoEscapeConn      then autoEscapeConn:Disconnect();      autoEscapeConn      = nil end
+            if autoEscapeCharConn  then autoEscapeCharConn:Disconnect();  autoEscapeCharConn  = nil end
+            if autoEscapeTimerConn then autoEscapeTimerConn:Disconnect(); autoEscapeTimerConn = nil end
+        end
+    end)
 end
 
 do
     local roles = workspace:FindFirstChild("PLAYERS")
 
     local DefaultColors = {
-        EspAlive  = Color3.fromRGB(0, 255, 0),
-        EspKiller = Color3.fromRGB(255, 0, 0),
-        EspLobby  = Color3.fromRGB(150, 150, 150),
-        EspGen    = Color3.fromRGB(0, 100, 255),
+        EspAlive   = Color3.fromRGB(0, 255, 0),
+        EspKiller  = Color3.fromRGB(255, 0, 0),
+        EspLobby   = Color3.fromRGB(150, 150, 150),
+        EspGen     = Color3.fromRGB(0, 100, 255),
+        EspBattery = Color3.fromRGB(255, 165, 0),
     }
 
     local function applyHighlight(target, color, controlOption)
@@ -7697,12 +8092,12 @@ do
         if existing then existing.FillColor = color; return end
 
         local h = Instance.new("Highlight")
-        h.Name              = "Highlight"
-        h.FillColor         = color
-        h.OutlineColor      = Color3.fromRGB(255, 255, 255)
+        h.Name                = "Highlight"
+        h.FillColor           = color
+        h.OutlineColor        = Color3.fromRGB(255, 255, 255)
         h.OutlineTransparency = 0
-        h.Adornee           = target
-        h.Parent            = target
+        h.Adornee             = target
+        h.Parent              = target
     end
 
     local function getRoleOption(folderName)
@@ -7784,12 +8179,14 @@ do
     EspGenToggle:OnChanged(refreshAllGenerators)
 
     task.spawn(function()
+        local lastGens = nil
         while true do
             local mapsFolder = workspace:FindFirstChild("MAPS")
             local gameMap    = mapsFolder and mapsFolder:FindFirstChild("GAME MAP")
             local tasks      = gameMap and gameMap:FindFirstChild("Tasks")
             local gens       = tasks and tasks:FindFirstChild("Generators")
-            if gens then
+            if gens and gens ~= lastGens then
+                lastGens = gens
                 gens.ChildAdded:Connect(function(gen)
                     task.wait(0.1)
                     updateGenESP(gen)
@@ -7799,9 +8196,66 @@ do
                     updateGenESP(gen)
                     gen:GetAttributeChangedSignal("Progress"):Connect(function() updateGenESP(gen) end)
                 end
-                break
             end
             task.wait(1)
+        end
+    end)
+
+    local function isBatteryValid(obj)
+        if obj.Name ~= "Battery" then return false end
+        if not (obj:IsA("Model") or obj:IsA("BasePart") or obj:IsA("MeshPart")) then return false end
+        local parent = obj.Parent
+        if parent and parent.Name == "FuseBox" then return false end
+        return true
+    end
+
+    local function applyBatteryESP(obj)
+        if not isBatteryValid(obj) then return end
+        if Options.EspBattery and Options.EspBattery.Value then
+            applyHighlight(obj, DefaultColors.EspBattery, "EspBattery")
+        else
+            local existing = obj:FindFirstChild("Highlight")
+            if existing then existing:Destroy() end
+        end
+    end
+
+    local function refreshAllBatteries()
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if isBatteryValid(obj) then
+                applyBatteryESP(obj)
+            end
+        end
+    end
+
+    local batteryDescConn = nil
+
+    local EspBatteryToggle = Tabs.ESP:AddToggle("EspBattery", { Title = "Show Batteries", Default = false })
+    EspBatteryToggle:OnChanged(function()
+        if Options.EspBattery.Value then
+            refreshAllBatteries()
+            if batteryDescConn then batteryDescConn:Disconnect() end
+            batteryDescConn = workspace.DescendantAdded:Connect(function(desc)
+                if not Options.EspBattery or not Options.EspBattery.Value then return end
+                task.wait(0.1)
+                applyBatteryESP(desc)
+            end)
+        else
+            if batteryDescConn then batteryDescConn:Disconnect(); batteryDescConn = nil end
+            for _, obj in ipairs(workspace:GetDescendants()) do
+                if obj.Name == "Battery" then
+                    local existing = obj:FindFirstChild("Highlight")
+                    if existing then existing:Destroy() end
+                end
+            end
+        end
+    end)
+
+    task.spawn(function()
+        while true do
+            task.wait(5)
+            if Options.EspBattery and Options.EspBattery.Value then
+                refreshAllBatteries()
+            end
         end
     end)
 end
