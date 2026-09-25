@@ -23600,15 +23600,15 @@ __kicia_hook_shared.script_paths = function()
 -- Change these two to rename the script. DisplayName is what the menu title bar
 -- shows; StorageRoot is the folder name on disk (renaming it orphans any configs
 -- already saved under the old name).
-local DisplayName = 'KiciaHook'
-local StorageRoot = 'KiciaHook'
+local DisplayName = 'Synth Hub'
+local StorageRoot = 'Synth Hub'
 
 -- Where queue_on_teleport should re-read the script from when "Auto Execute on
 -- Teleport" is enabled. Save the built script to this path (relative to your
 -- executor's workspace folder) for that option to work. If you load the script
 -- from a URL instead, replace the body of queue_on_teleport_script() below with
 -- your own loadstring line.
-local LocalScriptPath = StorageRoot .. '/KiciaHook_Source_Runnable.lua'
+local LocalScriptPath = StorageRoot .. '/SynthHub_Source_Runnable.lua'
 
 local AutoShowPath = StorageRoot .. '/AutoShow.txt'
 local UiSettingsPath = StorageRoot .. '/UISettings.json'
@@ -30104,7 +30104,7 @@ ErrorReporter.set_game(GameName)
                         local targetFov = ReadRivalsModNumber('P4S2S4', 80)
                         local baseFov = type(cameraController._base_fov) == 'number' and cameraController._base_fov or 80
                         local fovOffset = IsRivalsModToggleEnabled('P4S2T9') and (targetFov - baseFov) or 0
-                        cameraController:SetExternalFOVOffset('KiciaHook', fovOffset)
+                        cameraController:SetExternalFOVOffset('Synth Hub', fovOffset)
                     end
 
                     if IsRivalsModToggleEnabled('P4S2T10') then
@@ -30190,7 +30190,7 @@ ErrorReporter.set_game(GameName)
                     state.CameraController:SetThirdPersonOverride(state.CameraThirdPersonOriginal)
                 end
                 if state.CameraController and type(state.CameraController.SetExternalFOVOffset) == 'function' then
-                    state.CameraController:SetExternalFOVOffset('KiciaHook', 0)
+                    state.CameraController:SetExternalFOVOffset('Synth Hub', 0)
                 end
                 if state.CameraController and state.CameraViewModelOriginal ~= nil then
                     state.CameraController.ViewModelOffsetCFrame = state.CameraViewModelOriginal
@@ -31394,7 +31394,7 @@ ErrorReporter.set_game(GameName)
                 OwnedAtmosphere = nil,
                 NativeAtmosphereGuards = setmetatable({}, { __mode = 'k' }),
                 CustomSkyboxes = {},
-                CustomSkyPath = 'KiciaHook/RIVALS Skyboxes.json',
+                CustomSkyPath = 'Synth Hub/RIVALS Skyboxes.json',
                 SkyProperties = {
                     'SkyboxBk', 'SkyboxDn', 'SkyboxFt', 'SkyboxLf', 'SkyboxRt', 'SkyboxUp',
                     'StarCount', 'CelestialBodiesShown', 'SunAngularSize', 'MoonAngularSize',
@@ -31795,7 +31795,7 @@ ErrorReporter.set_game(GameName)
                 local owned = world.OwnedEffects[className]
                 if not owned or owned.Parent == nil then
                     owned = Instance.new(className)
-                    owned.Name = 'KiciaHookWorldVisuals_' .. className
+                    owned.Name = 'SynthHubWorldVisuals_' .. className
                     world.OwnedEffects[className] = owned
                     world.ApplyOwnedEffectProperties(className, owned)
                     owned.Parent = world.Lighting
@@ -31845,7 +31845,7 @@ ErrorReporter.set_game(GameName)
                 local sound = world.OwnedAmbience
                 if not sound or sound.Parent == nil then
                     sound = Instance.new('Sound')
-                    sound.Name = 'KiciaHookWorldVisuals_Ambience'
+                    sound.Name = 'SynthHubWorldVisuals_Ambience'
                     sound.Looped = true
                     world.OwnedAmbience = sound
                     sound.Parent = world.SoundService
@@ -31945,7 +31945,7 @@ ErrorReporter.set_game(GameName)
                 world.ActiveWeatherPreset = preset
                 for _, spec in ipairs(specs) do
                     local emitter = Instance.new('ParticleEmitter')
-                    emitter.Name = 'KiciaHookWeatherEmitter'
+                    emitter.Name = 'SynthHubWeatherEmitter'
                     emitter.Shape = Enum.ParticleEmitterShape.Box
                     emitter.EmissionDirection = Enum.NormalId.Bottom
                     emitter.Enabled = true
@@ -31983,7 +31983,7 @@ ErrorReporter.set_game(GameName)
                 local part = world.OwnedWeatherPart
                 if not part or part.Parent == nil then
                     part = Instance.new('Part')
-                    part.Name = 'KiciaHookWeatherEmitter'
+                    part.Name = 'SynthHubWeatherEmitter'
                     part.Anchored = true
                     part.CanCollide = false
                     part.CanQuery = false
@@ -32007,15 +32007,15 @@ ErrorReporter.set_game(GameName)
 
             function RivalsRuntimeBridge.WorldVisuals.AddLightningSegment(instances, startPosition, endPosition, color, thickness, brightness)
                 local near = Instance.new('Attachment')
-                near.Name = 'KiciaHookLightningAttachment'
+                near.Name = 'SynthHubLightningAttachment'
                 near.Position = startPosition
                 near.Parent = Workspace.Terrain
                 local far = Instance.new('Attachment')
-                far.Name = 'KiciaHookLightningAttachment'
+                far.Name = 'SynthHubLightningAttachment'
                 far.Position = endPosition
                 far.Parent = Workspace.Terrain
                 local beam = Instance.new('Beam')
-                beam.Name = 'KiciaHookLightningBeam'
+                beam.Name = 'SynthHubLightningBeam'
                 beam.Attachment0 = near
                 beam.Attachment1 = far
                 beam.Color = ColorSequence.new(color)
@@ -32100,7 +32100,7 @@ ErrorReporter.set_game(GameName)
                         return
                     end
                     local sound = Instance.new('Sound')
-                    sound.Name = 'KiciaHookWeatherThunder'
+                    sound.Name = 'SynthHubWeatherThunder'
                     sound.SoundId = source
                     sound.Volume = math.max(0, volume)
                     sound.PlaybackSpeed = playbackSpeed
@@ -32137,13 +32137,13 @@ ErrorReporter.set_game(GameName)
                 end
 
                 local impact = Instance.new('Attachment')
-                impact.Name = 'KiciaHookLightningImpact'
+                impact.Name = 'SynthHubLightningImpact'
                 impact.Position = endPosition
                 impact.Parent = Workspace.Terrain
                 table.insert(instances, impact)
                 if flash > 0 then
                     local light = Instance.new('PointLight')
-                    light.Name = 'KiciaHookLightningFlash'
+                    light.Name = 'SynthHubLightningFlash'
                     light.Color = color
                     light.Brightness = flash
                     light.Range = math.max(18, flash * 5)
@@ -32160,7 +32160,7 @@ ErrorReporter.set_game(GameName)
                     local sparkDistance = math.max(2, tonumber(world.ReadOption('P1S29S10', 22)) or 22)
                     local sparkSpeed = math.max(2, tonumber(world.ReadOption('P1S29S11', 22)) or 22)
                     local sparks = Instance.new('ParticleEmitter')
-                    sparks.Name = 'KiciaHookLightningSparks'
+                    sparks.Name = 'SynthHubLightningSparks'
                     sparks.Texture = 'rbxassetid://119455261341623'
                     sparks.Rate = 0
                     sparks.Color = ColorSequence.new(sparkColor)
@@ -32293,7 +32293,7 @@ ErrorReporter.set_game(GameName)
             function RivalsRuntimeBridge.WorldVisuals.RestoreStretchedResolution()
                 local world = RivalsRuntimeBridge.WorldVisuals
                 if world.StretchedResolutionBound then
-                    RunService:UnbindFromRenderStep('KiciaHookStretchedResolution')
+                    RunService:UnbindFromRenderStep('SynthHubStretchedResolution')
                     world.StretchedResolutionBound = false
                 end
                 local camera = world.StretchedLastCamera
@@ -32315,7 +32315,7 @@ ErrorReporter.set_game(GameName)
                 if not world.StretchedResolutionBound then
                     world.StretchedResolutionBound = true
                     RunService:BindToRenderStep(
-                        'KiciaHookStretchedResolution',
+                        'SynthHubStretchedResolution',
                         Enum.RenderPriority.Camera.Value + 1,
                         GuardRivalsCallback('WorldVisuals_StretchedResolution', world.UpdateStretchedResolution)
                     )
@@ -32884,7 +32884,7 @@ ErrorReporter.set_game(GameName)
                         end)
                     end
                     local sky = Instance.new('Sky')
-                    sky.Name = 'KiciaHookWorldVisuals_Sky'
+                    sky.Name = 'SynthHubWorldVisuals_Sky'
                     for property, value in pairs(preset) do
                         pcall(function()
                             sky[property] = value
@@ -32965,7 +32965,7 @@ ErrorReporter.set_game(GameName)
                 local atmosphere = world.OwnedAtmosphere
                 if not atmosphere or atmosphere.Parent == nil then
                     atmosphere = Instance.new('Atmosphere')
-                    atmosphere.Name = 'KiciaHookWorldVisuals_Atmosphere'
+                    atmosphere.Name = 'SynthHubWorldVisuals_Atmosphere'
                     world.OwnedAtmosphere = atmosphere
                     atmosphere.Parent = world.Lighting
                 end
@@ -33299,7 +33299,7 @@ ErrorReporter.set_game(GameName)
                         local highlight = entries[root]
                         if not highlight or highlight.Parent == nil then
                             highlight = Instance.new('Highlight')
-                            highlight.Name = 'KiciaHookViewmodelHighlight_' .. scopeName
+                            highlight.Name = 'SynthHubViewmodelHighlight_' .. scopeName
                             highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                             highlight.Adornee = root
                             highlight.Parent = root
@@ -33454,7 +33454,7 @@ ErrorReporter.set_game(GameName)
                     return visuals.Crosshair
                 end
                 local gui = Instance.new('ScreenGui')
-                gui.Name = 'KiciaHookCustomCrosshair'
+                gui.Name = 'SynthHubCustomCrosshair'
                 gui.IgnoreGuiInset = true
                 gui.ResetOnSpawn = false
                 gui.DisplayOrder = 10000
@@ -33538,14 +33538,14 @@ ErrorReporter.set_game(GameName)
             }
 
             RivalsRuntimeBridge.ViewmodelVisuals.CrosshairPresetOrder = {
-                'KiciaHook Default', 'CS2 Classic Green', 'Valorant Cyan', 'TenZ Cyan',
+                'Synth Hub Default', 'CS2 Classic Green', 'Valorant Cyan', 'TenZ Cyan',
                 'Aspas White', 'CoD Modern', 'Fortnite Cyan', 'Overwatch Magenta',
                 'Rust Dot', 'Red Dot', 'T-Style', 'Krunker Cross',
                 'Sniper Thin', 'Rainbow Spin',
             }
 
             RivalsRuntimeBridge.ViewmodelVisuals.CrosshairPresets = {
-                ['KiciaHook Default'] = {
+                ['Synth Hub Default'] = {
                     Toggles = { P1S26T3 = true, P1S26T4 = true, P1S26T5 = true, P1S26T6 = true },
                     Options = { P1S26D1 = 'Lines', P1S26S1 = 12, P1S26S2 = 2, P1S26S3 = 6, P1S26S11 = 1 },
                     Colors = {
@@ -35939,7 +35939,7 @@ ErrorReporter.set_game(GameName)
             end
 
             RivalsRuntimeBridge.MovementRecorder = {
-                SavePath = 'KiciaHook/RIVALS Movement Recordings.json',
+                SavePath = 'Synth Hub/RIVALS Movement Recordings.json',
                 Version = 1,
                 Mode = 'Idle',
                 PendingKind = nil,
@@ -36206,8 +36206,8 @@ ErrorReporter.set_game(GameName)
                 end
                 local ok = pcall(function()
                     if type(makefolder) == 'function' and type(isfolder) == 'function'
-                        and not isfolder('KiciaHook') then
-                        makefolder('KiciaHook')
+                        and not isfolder('Synth Hub') then
+                        makefolder('Synth Hub')
                     end
                     writefile(recorder.SavePath, game:GetService('HttpService'):JSONEncode({
                         version = recorder.Version,
@@ -37086,7 +37086,7 @@ ErrorReporter.set_game(GameName)
 
             function RivalsRuntimeBridge.MovementRecorder.CreateWaypointGui(name, position, isRoute)
                 local attachment = Instance.new('Attachment')
-                attachment.Name = isRoute and 'KiciaHookMovementRoute' or 'KiciaHookMovementMarker'
+                attachment.Name = isRoute and 'SynthHubMovementRoute' or 'SynthHubMovementMarker'
                 attachment.WorldPosition = position
                 attachment.Parent = Workspace.Terrain
                 local gui = Instance.new('BillboardGui')
@@ -37483,8 +37483,8 @@ ErrorReporter.set_game(GameName)
                     'P1S16D1',
                     'P1S17D1',
                 },
-                CustomSoundsPath = 'KiciaHook/RIVALS Custom Sounds.json',
-                CustomSoundsCacheFolder = 'KiciaHook/RIVALS Sounds',
+                CustomSoundsPath = 'Synth Hub/RIVALS Custom Sounds.json',
+                CustomSoundsCacheFolder = 'Synth Hub/RIVALS Sounds',
                 MaterialMap = {
                     Ghost = Enum.Material.ForceField,
                     Flat = Enum.Material.Neon,
@@ -37588,8 +37588,8 @@ ErrorReporter.set_game(GameName)
                     return false
                 end
                 local ok = pcall(function()
-                    if type(makefolder) == 'function' and type(isfolder) == 'function' and not isfolder('KiciaHook') then
-                        makefolder('KiciaHook')
+                    if type(makefolder) == 'function' and type(isfolder) == 'function' and not isfolder('Synth Hub') then
+                        makefolder('Synth Hub')
                     end
                     writefile(feedback.CustomSoundsPath, game:GetService('HttpService'):JSONEncode({
                         version = 1,
@@ -37767,8 +37767,8 @@ ErrorReporter.set_game(GameName)
                     local cachePath = string.format('%s/%s%s', feedback.CustomSoundsCacheFolder, feedback.HashSoundUrl(source), extension)
                     local ok = pcall(function()
                         if type(makefolder) == 'function' and type(isfolder) == 'function' then
-                            if not isfolder('KiciaHook') then
-                                makefolder('KiciaHook')
+                            if not isfolder('Synth Hub') then
+                                makefolder('Synth Hub')
                             end
                             if not isfolder(feedback.CustomSoundsCacheFolder) then
                                 makefolder(feedback.CustomSoundsCacheFolder)
@@ -37823,7 +37823,7 @@ ErrorReporter.set_game(GameName)
                     return
                 end
                 local sound = Instance.new('Sound')
-                sound.Name = 'KiciaHookCombatFeedback'
+                sound.Name = 'SynthHubCombatFeedback'
                 sound.SoundId = asset
                 sound.Volume = math.max(0, tonumber(volume) or 1)
                 sound.PlaybackSpeed = math.max(0.01, tonumber(pitch) or 1)
@@ -37838,7 +37838,7 @@ ErrorReporter.set_game(GameName)
                     return
                 end
                 local model = Instance.new('Model')
-                model.Name = 'KiciaHookCombatFeedbackChams'
+                model.Name = 'SynthHubCombatFeedbackChams'
                 local parts = {}
                 local material = feedback.MaterialMap[materialName] or Enum.Material.ForceField
                 local baseTransparency = math.clamp(tonumber(transparency) or 0, 0, 1)
@@ -37966,7 +37966,7 @@ ErrorReporter.set_game(GameName)
                 far.Position = startPosition
                 far.Parent = Workspace.Terrain
                 local beam = Instance.new('Beam')
-                beam.Name = 'KiciaHookBulletTracer'
+                beam.Name = 'SynthHubBulletTracer'
                 beam.Attachment0 = near
                 beam.Attachment1 = far
                 beam.Color = ColorSequence.new(feedback.ReadOption('P1S18C1', Color3.fromRGB(120, 220, 255)))
@@ -42222,7 +42222,7 @@ ErrorReporter.set_game(GameName)
                 OpenRetryLimit = 5,
                 Unselected = 'Unselected',
                 Priorities = {'1', '2', '3'},
-                ConfigMetadataId = 'KiciaHook_RivalsAutoLoadoutProfiles',
+                ConfigMetadataId = 'SynthHub_RivalsAutoLoadoutProfiles',
                 Catalog = {},
                 LiveValuesBySlot = {},
                 ExcludedWeaponNames = {
@@ -43090,7 +43090,7 @@ ErrorReporter.set_game(GameName)
                 end
                 mergedObjects[#mergedObjects + 1] = {
                     idx = RivalsAutoLoadout.ConfigMetadataId,
-                    type = 'KiciaHookMetadata',
+                    type = 'SynthHubMetadata',
                     value = RivalsAutoLoadout.NormalizeProfiles(RivalsAutoLoadoutState.Profiles),
                 }
                 decoded.objects = mergedObjects
@@ -44477,7 +44477,7 @@ ErrorReporter.set_game(GameName)
                     RankLeaderboard = 'P5RANK_LEADERBOARD',
                 },
                 FavoriteKinds = {'Skin', 'Wrap', 'Charm', 'Finisher'},
-                CosmeticPresetPath = 'KiciaHook/RIVALS Cosmetic Presets.json',
+                CosmeticPresetPath = 'Synth Hub/RIVALS Cosmetic Presets.json',
             }
             local RivalsEmotes = {
                 Catalog = {},
@@ -47157,8 +47157,8 @@ ErrorReporter.set_game(GameName)
                     return false
                 end
 
-                local previousOriginalPlayFinisher = rawget(clientEntity, '__KiciaHookOriginalPlayFinisher')
-                if rawget(clientEntity, '__KiciaHookFinisherHooked') == true and type(previousOriginalPlayFinisher) == 'function' then
+                local previousOriginalPlayFinisher = rawget(clientEntity, '__SynthHubOriginalPlayFinisher')
+                if rawget(clientEntity, '__SynthHubFinisherHooked') == true and type(previousOriginalPlayFinisher) == 'function' then
                     clientEntity._PlayFinisher = previousOriginalPlayFinisher
                 end
 
@@ -47187,7 +47187,7 @@ ErrorReporter.set_game(GameName)
                 local originalPlayFinisher = RivalsCosmeticsState.OriginalClientEntityPlayFinisher
                 local wrappedPlayFinisher = RivalsCosmeticsState.ClientEntityPlayFinisherWrapper
                 if type(clientEntity) == 'table' and type(originalPlayFinisher) == 'function' then
-                    if clientEntity._PlayFinisher == wrappedPlayFinisher or rawget(clientEntity, '__KiciaHookFinisherHooked') == true then
+                    if clientEntity._PlayFinisher == wrappedPlayFinisher or rawget(clientEntity, '__SynthHubFinisherHooked') == true then
                         clientEntity._PlayFinisher = originalPlayFinisher
                     end
                     clientEntity.__KiciaHookOriginalPlayFinisher = nil
@@ -48042,8 +48042,8 @@ ErrorReporter.set_game(GameName)
                     settings = RivalsCosmeticsState.CosmeticPresetSettings,
                 }
                 return pcall(function()
-                    if not isfolder('KiciaHook') then
-                        makefolder('KiciaHook')
+                    if not isfolder('Synth Hub') then
+                        makefolder('Synth Hub')
                     end
                     writefile(RivalsCosmetics.CosmeticPresetPath, HttpService:JSONEncode(payload))
                 end)
@@ -49032,7 +49032,7 @@ ErrorReporter.set_game(GameName)
 
                 if skinName then
                     local sourceModel = RivalsCosmetics.ResolveSkinSourceModel('Subspace Tripmine', skinName)
-                    local clone = RivalsCosmetics.ClonePreviewObject(sourceModel, '__KiciaHookTripmineSkin')
+                    local clone = RivalsCosmetics.ClonePreviewObject(sourceModel, '__SynthHubTripmineSkin')
                     if clone then
                         entry.Clone = clone
                         entry.WrapTarget = clone
@@ -50214,7 +50214,7 @@ ErrorReporter.set_game(GameName)
 
                 function WorldESPState.CreateSoundEffect()
                     local anchor = Instance.new('Part')
-                    anchor.Name = '__KiciaHookSoundPulse'
+                    anchor.Name = '__SynthHubSoundPulse'
                     anchor.Anchored = true
                     anchor.CanCollide = false
                     anchor.CanQuery = false
@@ -50225,7 +50225,7 @@ ErrorReporter.set_game(GameName)
                     anchor.Parent = Workspace
 
                     local pulse = Instance.new('SphereHandleAdornment')
-                    pulse.Name = '__KiciaHookSoundPulseAdornment'
+                    pulse.Name = '__SynthHubSoundPulseAdornment'
                     pulse.Adornee = anchor
                     pulse.AlwaysOnTop = true
                     pulse.Visible = false
@@ -50443,7 +50443,7 @@ ErrorReporter.set_game(GameName)
 
             local function BuildEspPreviewModel()
                 local model = Instance.new('Model')
-                model.Name = 'KiciaHookEspPreview'
+                model.Name = 'SynthHubEspPreview'
                 local bodyColor = Color3.fromRGB(116, 124, 137)
                 local limbColor = Color3.fromRGB(82, 90, 104)
                 local torso = CreateEspPreviewPart(model, 'Torso', Vector3.new(2, 2.2, 1), Vector3.new(0, 0.65, 0), bodyColor)
