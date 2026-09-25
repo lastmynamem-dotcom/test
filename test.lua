@@ -65,7 +65,7 @@ if currentID == 0 then
     currentID = game.PlaceId 
 end
 
-if currentID == 111530421351096 then
+if (currentID == 111530421351096 or game.GameId == 8967864843) then
 local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
 local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
@@ -153,7 +153,7 @@ local args = {
             return getNil("ModuleScript", "Client")
         end)(),
     },
-    [2] = "!U\ZA",
+    [2] = "!U\ZA ",
     [3] = "kick",
     [4] = "namecallInstance detector detected - On mobile",
 }
@@ -1064,7 +1064,7 @@ SaveManager:SetSubFolder("specific-place")
 SaveManager:BuildConfigSection(Tabs["UI Settings"])
 ThemeManager:ApplyToTab(Tabs["UI Settings"])
 SaveManager:LoadAutoloadConfig()
-elseif currentID == 16552821455 then
+elseif (currentID == 16552821455 or game.GameId == 5569032992) then
     -- Extended sUNC-style Executor Capability Checker
 -- No sUNC table, no execution, environment validation only
 
@@ -2142,7 +2142,7 @@ Library:OnUnload(function()
     ClearAllESP()
     Library.Unloaded = true
 end)
-elseif currentID == 10660791703 then
+elseif (currentID == 10660791703 or game.GameId == 3864279452) then
     -- Extended sUNC-style Executor Capability Checker
 -- No sUNC table, no execution, environment validation only
 
@@ -2582,7 +2582,7 @@ SaveManager:BuildConfigSection(Tabs["UI Settings"])
 ThemeManager:ApplyToTab(Tabs["UI Settings"])
 SaveManager:LoadAutoloadConfig()
 
-elseif currentID == 9772878203 or currentID == 9921522947 then
+elseif (currentID == 9772878203 or currentID == 9921522947 or game.GameId == 3620011279) then
     
 for _, x in pairs(game.Workspace:GetDescendants()) do
     if x:IsA("ProximityPrompt") then
@@ -4912,7 +4912,7 @@ SaveManager:SetSubFolder("specific-place")
 SaveManager:BuildConfigSection(Tabs["UI Settings"])
 ThemeManager:ApplyToTab(Tabs["UI Settings"])
 SaveManager:LoadAutoloadConfig()
-elseif currentID == 286090429 then
+elseif (currentID == 286090429 or game.GameId == 111958650) then
 local repo = 'https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/'
 local Library = loadstring(game:HttpGet(repo .. 'Library.lua'))()
 local ThemeManager = loadstring(game:HttpGet(repo .. 'addons/ThemeManager.lua'))()
@@ -5199,7 +5199,7 @@ Tabs['UI Settings']:AddLeftGroupbox('Menu'):AddButton('Unload', function()
     AimbotCircle:Remove(); SilentCircle:Remove()
     Library:Unload()
 end)
-elseif currentID == 3678761576 then
+elseif (currentID == 3678761576 or game.GameId == 1281592938) then
 workspace.PrivateServerSettings.AntiCheat.Value = false
 
 local repo = 'https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/'
@@ -5451,7 +5451,7 @@ SaveManager:BuildConfigSection(Tabs['UI Settings']); ThemeManager:ApplyToTab(Tab
 Tabs['UI Settings']:AddLeftGroupbox('Menu'):AddButton('Unload', function()
     AimbotCircle:Remove(); Library:Unload()
 end)
-elseif currentID == 4623386862 or currentID == 5661005779 then
+elseif (currentID == 4623386862 or currentID == 5661005779 or game.GameId == 1516533665) then
 -- // VARIABLES \\ --
 local lp = game.Players.LocalPlayer
 local Lighting = game:GetService("Lighting")
@@ -6138,7 +6138,7 @@ SaveManager:SetFolder("SynthHub/Piggy")
 SaveManager:BuildConfigSection(Tabs["UI Settings"])
 ThemeManager:ApplyToTab(Tabs["UI Settings"])
 SaveManager:LoadAutoloadConfig()
-elseif currentID == 142823291 then
+elseif (currentID == 142823291 or game.GameId == 66654135) then
 -- // SERVICES & VARIABLES \\ --
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -6905,7 +6905,7 @@ SaveManager:SetSubFolder("specific-place")
 SaveManager:BuildConfigSection(Tabs["UI Settings"])
 ThemeManager:ApplyToTab(Tabs["UI Settings"])
 SaveManager:LoadAutoloadConfig()
-elseif currentID == 70845479499574 then
+elseif (currentID == 70845479499574 or game.GameId == 8202280624) then
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
@@ -8259,7 +8259,7 @@ Window:SelectTab(1)
 Fluent:Notify({ Title = "Synth Hub", Content = "Loaded", Duration = 5 })
 
 SaveManager:LoadAutoloadConfig()
-elseif currentID == 97598239454123 or currentID == 77085202503540 then
+elseif (currentID == 97598239454123 or currentID == 77085202503540 or game.GameId == 10200395747) then
 
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -9338,7 +9338,7 @@ SaveManager:SetFolder("SynthHub/GrowAGarden2")
 SaveManager:BuildConfigSection(Tabs.Settings)
 ThemeManager:ApplyToTab(Tabs.Settings)
 SaveManager:LoadAutoloadConfig()
-elseif currentID == 17625359962 then
+elseif (currentID == 17625359962 or game.GameId == 6035872082) then
 (function()
 
 local function ResolveGlobalEnv()
@@ -54941,5 +54941,5 @@ ErrorReporter.set_game(GameName)
 
 end)()
 else
-    warn("We do not support this game. In case you're in Dandy's World lobby, please join a match so it works.")
+    warn("This game is not supported.")
 end
